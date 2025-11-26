@@ -2,9 +2,12 @@
 
 # dependencies
 node_modules/
+npm-debug.log
+yarn-error.log
 
 # Expo
 .expo/
+.expo-shared/
 dist/
 web-build/
 expo-env.d.ts
@@ -20,6 +23,20 @@ expo-env.d.ts
 
 # Metro
 .metro-health-check*
+.cache/
+dist/
+.idea/
+.vscode/
+
+# iOS
+ios/
+build/
+*.orig
+
+# Android
+android/
+*.apk
+app-release.apk
 
 # debug
 npm-debug.*
@@ -36,8 +53,8 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Logs
+*.log
+
 app-example
 
-# generated native folders
-/ios
-/android
