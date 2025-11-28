@@ -1,14 +1,80 @@
-import React from "react";
-import { View, Text, StyleSheet, FlatList } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Modal,
+  TextInput,
+  TouchableOpacity,
+} from "react-native";
+import { useRouter } from "expo-router";
 import { useCart, Order } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function Conta() {
+  const router = useRouter();
   const { orders } = useCart();
+  const { user, updateUser, logout } = useAuth();
+
+  const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [canEdit, setCanEdit] = useState(false);
+
+  const [editName, setEditName] = useState(user?.name || "");
+  const [editEmail, setEditEmail] = useState(user?.email || "");
+  const [editNif, setEditNif] = useState(user?.nif || "");
+  const [editAddress, setEditAddress] = useState(user?.address || "");
+  const [editPhone, setEditPhone] = useState(user?.phone || "");
+
+  if (!user) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>A Minha Conta</Text>
+        <Text style={styles.info}>
+          Não tens sessão iniciada. Volta ao ecrã inicial e faz login ou
+          regista uma conta.
+        </Text>
+      </View>
+    );
+  }
+
+  const handleAskPassword = () => {
+    setPasswordInput("");
+    setPasswordError(null);
+    setPasswordModalVisible(true);
+  };
+
+  const handleConfirmPassword = () => {
+    if (passwordInput !== user.password) {
+      setPasswordError("Password incorreta.");
+      return;
+    }
+    setPasswordModalVisible(false);
+    setCanEdit(true);
+  };
+
+  const handleSaveChanges = () => {
+    updateUser({
+      name: editName,
+      email: editEmail,
+      nif: editNif,
+      address: editAddress,
+      phone: editPhone,
+    });
+    setCanEdit(false);
+  };
+
+  const handleLogout = () => {
+    logout();
+    router.replace("/"); // volta para o ecrã inicial
+  };
 
   const renderOrder = ({ item }: { item: Order }) => {
     const date = new Date(item.createdAt);
     return (
-      <View style={styles.orderCard}>
+      <View className="orderCard" style={styles.orderCard}>
         <Text style={styles.orderTitle}>
           Pedido #{item.id} - {item.total.toFixed(2)} €
         </Text>
@@ -27,18 +93,83 @@ export default function Conta() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>A Minha Conta</Text>
-
-      <Text style={styles.info}>
-        Aqui vais poder visualizar e editar os teus dados pessoais, como:
-      </Text>
-
-      <View style={styles.list}>
-        <Text style={styles.item}>• Nome</Text>
-        <Text style={styles.item}>• Email</Text>
-        <Text style={styles.item}>• Morada</Text>
-        <Text style={styles.item}>• Histórico de pedidos</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.title}>A Minha Conta</Text>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <Text style={styles.logoutButtonText}>Logout</Text>
+        </TouchableOpacity>
       </View>
+
+      {!canEdit ? (
+        <>
+          <Text style={styles.info}>Os teus dados atuais:</Text>
+          <View style={styles.dataBlock}>
+            <Text style={styles.dataItem}>Nome: {user.name}</Text>
+            <Text style={styles.dataItem}>Email: {user.email}</Text>
+            <Text style={styles.dataItem}>NIF: {user.nif}</Text>
+            <Text style={styles.dataItem}>Morada: {user.address}</Text>
+            <Text style={styles.dataItem}>Telemóvel: {user.phone}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={handleAskPassword}
+          >
+            <Text style={styles.editButtonText}>Editar dados</Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <Text style={styles.info}>Editar dados da conta:</Text>
+
+          <TextInput
+            style={styles.input}
+            value={editName}
+            onChangeText={setEditName}
+            placeholder="Nome"
+          />
+          <TextInput
+            style={styles.input}
+            value={editEmail}
+            onChangeText={setEditEmail}
+            placeholder="Email"
+            autoCapitalize="none"
+          />
+          <TextInput
+            style={styles.input}
+            value={editNif}
+            onChangeText={setEditNif}
+            placeholder="NIF"
+          />
+          <TextInput
+            style={styles.input}
+            value={editAddress}
+            onChangeText={setEditAddress}
+            placeholder="Morada"
+          />
+          <TextInput
+            style={styles.input}
+            value={editPhone}
+            onChangeText={setEditPhone}
+            placeholder="Telemóvel"
+          />
+
+          <View style={styles.editButtonsRow}>
+            <TouchableOpacity
+              style={[styles.saveButton, { backgroundColor: "#BDBDBD" }]}
+              onPress={() => setCanEdit(false)}
+            >
+              <Text style={styles.saveButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.saveButton}
+              onPress={handleSaveChanges}
+            >
+              <Text style={styles.saveButtonText}>Guardar</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
 
       <Text style={styles.historyTitle}>Pedidos efetuados</Text>
 
@@ -57,6 +188,47 @@ export default function Conta() {
         No futuro, estes dados podem ser guardados numa base de dados via API,
         permitindo também calcular faturamento na área de admin.
       </Text>
+
+      {/* Modal para pedir password antes de editar */}
+      <Modal
+        visible={isPasswordModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPasswordModalVisible(false)}
+      >
+        <View style={styles.modalOuter}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Confirmar Password</Text>
+            <Text style={styles.modalInfo}>
+              Introduz a password da conta para poderes editar os dados.
+            </Text>
+            {passwordError && (
+              <Text style={styles.errorText}>{passwordError}</Text>
+            )}
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              secureTextEntry
+              value={passwordInput}
+              onChangeText={setPasswordInput}
+            />
+            <View style={styles.editButtonsRow}>
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: "#BDBDBD" }]}
+                onPress={() => setPasswordModalVisible(false)}
+              >
+                <Text style={styles.saveButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={handleConfirmPassword}
+              >
+                <Text style={styles.saveButtonText}>Confirmar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -68,25 +240,79 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 60,
   },
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   title: {
     fontSize: 26,
     fontWeight: "bold",
     color: "#FF6F59",
     marginBottom: 10,
   },
+  logoutButton: {
+    backgroundColor: "#FF6F59",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  logoutButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 13,
+  },
   info: {
     fontSize: 16,
     color: "#444",
+    marginBottom: 10,
+  },
+  dataBlock: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  dataItem: {
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  editButton: {
+    backgroundColor: "#FF9F1C",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
     marginBottom: 20,
   },
-  list: {
-    marginLeft: 10,
-    marginBottom: 20,
+  editButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
   },
-  item: {
-    fontSize: 16,
+  input: {
+    borderWidth: 1,
+    borderColor: "#DDD",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     marginBottom: 8,
-    color: "#FF9F1C",
+    fontSize: 14,
+    backgroundColor: "#FFF",
+  },
+  editButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+    marginBottom: 20,
+  },
+  saveButton: {
+    flex: 1,
+    backgroundColor: "#FF6F59",
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  saveButtonText: {
+    color: "#fff",
     fontWeight: "bold",
   },
   historyTitle: {
@@ -130,8 +356,35 @@ const styles = StyleSheet.create({
     color: "#555",
   },
   footer: {
-    marginTop: 20,
+    marginTop: 10,
     fontSize: 13,
     color: "#666",
+  },
+  modalOuter: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  modalContent: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FF6F59",
+    marginBottom: 6,
+  },
+  modalInfo: {
+    fontSize: 13,
+    color: "#555",
+    marginBottom: 8,
+  },
+  errorText: {
+    color: "#FF3B30",
+    marginBottom: 6,
+    fontSize: 13,
   },
 });

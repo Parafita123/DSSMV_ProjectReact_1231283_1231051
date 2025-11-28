@@ -1,10 +1,11 @@
 import React, {
   createContext,
   useContext,
+  useMemo,
   useState,
   ReactNode,
-  useMemo,
 } from "react";
+import { useAuth } from "./AuthContext";
 
 export type Meal = {
   id: string;
@@ -23,6 +24,11 @@ export type Order = {
   createdAt: string;
 };
 
+type CartState = {
+  cartItems: Meal[];
+  orders: Order[];
+};
+
 type CartContextType = {
   cartItems: Meal[];
   totalItems: number;
@@ -35,60 +41,127 @@ type CartContextType = {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+// 🔹 refeições de exemplo para o mock
+const SAMPLE_MEALS: Meal[] = [
+  {
+    id: "1",
+    name: "Frango Piri-Piri Pós-Galo",
+    description: "Frango assado no carvão com molho picante da casa.",
+    price: 9.5,
+    category: "Especialidade da Casa",
+    spicy: true,
+    available: true,
+  },
+  {
+    id: "2",
+    name: "Hambúrguer do Galo",
+    description: "Hambúrguer de frango crocante com queijo e molho especial.",
+    price: 8.0,
+    category: "Hambúrgueres",
+    available: true,
+  },
+];
+
+// 🔹 estado inicial por utilizador
+const initialStateByUser: Record<string, CartState> = {
+  "cliente.cheio@comidaposgalos.pt": {
+    cartItems: [SAMPLE_MEALS[0]], // 1 refeição no carrinho
+    orders: [
+      {
+        id: "MOCK-001",
+        items: [SAMPLE_MEALS[0], SAMPLE_MEALS[1]],
+        total: SAMPLE_MEALS[0].price + SAMPLE_MEALS[1].price,
+        createdAt: new Date().toISOString(),
+      },
+    ],
+  },
+  "cliente.vazio@comidaposgalos.pt": {
+    cartItems: [],
+    orders: [],
+  },
+};
+
 export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const [cartItems, setCartItems] = useState<Meal[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const { user } = useAuth();
+  const [stateByUser, setStateByUser] = useState<Record<string, CartState>>(
+    initialStateByUser
+  );
+
+  const activeKey = user?.email ?? "__guest__";
+
+  const activeState: CartState =
+    stateByUser[activeKey] || { cartItems: [], orders: [] };
+
+  const setActiveState = (updater: (current: CartState) => CartState) => {
+    setStateByUser((prev) => {
+      const current = prev[activeKey] || { cartItems: [], orders: [] };
+      const updated = updater(current);
+      return { ...prev, [activeKey]: updated };
+    });
+  };
 
   const addToCart = (meal: Meal) => {
-    setCartItems((prev) => [...prev, meal]);
+    setActiveState((current) => ({
+      ...current,
+      cartItems: [...current.cartItems, meal],
+    }));
   };
 
   const removeFromCart = (mealId: string) => {
-    setCartItems((prev) => prev.filter((m) => m.id !== mealId));
+    setActiveState((current) => ({
+      ...current,
+      cartItems: current.cartItems.filter((m) => m.id !== mealId),
+    }));
   };
 
   const clearCart = () => {
-    setCartItems([]);
+    setActiveState((current) => ({
+      ...current,
+      cartItems: [],
+    }));
   };
 
-  const totalItems = cartItems.length;
-
   const placeOrder = () => {
-    if (cartItems.length === 0) return;
+    setActiveState((current) => {
+      if (current.cartItems.length === 0) return current;
 
-    const total = cartItems.reduce((sum, m) => sum + m.price, 0);
+      const total = current.cartItems.reduce((sum, m) => sum + m.price, 0);
+      const newOrder: Order = {
+        id: Date.now().toString(),
+        items: current.cartItems,
+        total,
+        createdAt: new Date().toISOString(),
+      };
 
-    const newOrder: Order = {
-      id: Date.now().toString(),
-      items: cartItems,
-      total,
-      createdAt: new Date().toISOString(),
-    };
-
-    setOrders((prev) => [newOrder, ...prev]);
-    setCartItems([]);
+      return {
+        cartItems: [],
+        orders: [newOrder, ...current.orders],
+      };
+    });
   };
 
   const value = useMemo(
     () => ({
-      cartItems,
-      totalItems,
+      cartItems: activeState.cartItems,
+      totalItems: activeState.cartItems.length,
       addToCart,
       removeFromCart,
       clearCart,
-      orders,
+      orders: activeState.orders,
       placeOrder,
     }),
-    [cartItems, totalItems, orders]
+    [activeState]
   );
 
-  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+  return (
+    <CartContext.Provider value={value}>{children}</CartContext.Provider>
+  );
 };
 
 export const useCart = (): CartContextType => {
   const ctx = useContext(CartContext);
   if (!ctx) {
-    throw new Error("useCart must be used within a CartProvider");
+    throw new Error("useCart deve ser usado dentro de um CartProvider");
   }
   return ctx;
 };
