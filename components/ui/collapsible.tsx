@@ -36,7 +36,9 @@ const styles = StyleSheet.create({
   heading: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    // Remove gap property; React Native versions prior to 0.71 do not support it.
+    // Spacing between the icon and text can be achieved by adding margin to the text component if needed.
+    // gap: 6,
   },
   content: {
     marginTop: 6,

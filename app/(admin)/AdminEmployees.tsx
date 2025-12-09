@@ -1,0 +1,183 @@
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import { useAdmin } from "../context/AdminContext";
+
+/**
+ * Screen for administrators to manage employees. Shows a list of current
+ * employees with an option to remove any of them. Provides a form to add
+ * new employees with name, role and email fields. When an employee is
+ * removed, they disappear from the list immediately.
+ */
+export default function AdminEmployees() {
+  const { employees, addEmployee, removeEmployee } = useAdmin();
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [email, setEmail] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleAdd = () => {
+    if (!name || !role || !email) return;
+    addEmployee({ name, role, email });
+    setName("");
+    setRole("");
+    setEmail("");
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 2000);
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Gestão de Funcionários</Text>
+      <Text style={styles.subtitle}>Adiciona ou remove funcionários.</Text>
+      <View style={styles.form}>
+        <TextInput
+          style={styles.input}
+          placeholder="Nome"
+          value={name}
+          onChangeText={setName}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Cargo"
+          value={role}
+          onChangeText={setRole}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Email"
+          value={email}
+          onChangeText={setEmail}
+          autoCapitalize="none"
+        />
+        {submitted && <Text style={styles.success}>Funcionário adicionado!</Text>}
+        <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
+          <Text style={styles.addButtonText}>Adicionar Funcionário</Text>
+        </TouchableOpacity>
+      </View>
+      <Text style={styles.sectionTitle}>Funcionários Atuais</Text>
+      {employees.length === 0 ? (
+        <Text style={styles.noEmployees}>Não há funcionários registados.</Text>
+      ) : (
+        employees.map((emp) => (
+          <View key={emp.id} style={styles.empCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.empName}>{emp.name}</Text>
+              <Text style={styles.empRole}>{emp.role}</Text>
+              <Text style={styles.empEmail}>{emp.email}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.removeButton}
+              onPress={() => removeEmployee(emp.id)}
+            >
+              <Text style={styles.removeButtonText}>Remover</Text>
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    backgroundColor: "#FFF6E5",
+    padding: 20,
+    paddingTop: 60,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: "bold",
+    color: "#FF6F59",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 13,
+    color: "#555",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  form: {
+    marginBottom: 30,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#DDD",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 10,
+    backgroundColor: "#FFF",
+    fontSize: 14,
+  },
+  success: {
+    color: "#4CAF50",
+    textAlign: "center",
+    marginBottom: 10,
+    fontWeight: "bold",
+  },
+  addButton: {
+    backgroundColor: "#FF9F1C",
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  addButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
+  },
+  noEmployees: {
+    fontSize: 14,
+    color: "#555",
+    marginBottom: 20,
+  },
+  empCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    elevation: 2,
+  },
+  empName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  empRole: {
+    fontSize: 13,
+    color: "#FF9F1C",
+  },
+  empEmail: {
+    fontSize: 13,
+    color: "#777",
+  },
+  removeButton: {
+    backgroundColor: "#FF6F59",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+  },
+  removeButtonText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
+});

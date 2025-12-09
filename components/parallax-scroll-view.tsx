@@ -73,7 +73,9 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 32,
-    gap: 16,
+    // Remove gap property; not supported on older React Native versions. If spacing
+    // between children is needed, apply margins to the children instead.
+    // gap: 16,
     overflow: 'hidden',
   },
 });

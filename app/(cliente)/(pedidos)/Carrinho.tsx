@@ -145,7 +145,8 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 10,
+    // Remove gap property as it is not supported in React Native versions prior to 0.71.
+    // gap: 10,
   },
   clearButton: {
     flex: 1,

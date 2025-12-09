@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -7,53 +7,55 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Meal, useCart } from "../../context/CartContext";
+import { useAdmin } from "../../context/AdminContext";
 
-const MOCK_MEALS: Meal[] = [
-  {
-    id: "1",
-    name: "Frango Piri-Piri Pós-Galo",
-    description: "Frango assado no carvão com molho picante da casa.",
-    price: 9.5,
-    category: "Especialidade da Casa",
-    spicy: true,
-    available: true,
-  },
-  {
-    id: "2",
-    name: "Hambúrguer do Galo",
-    description: "Hambúrguer de frango crocante com queijo e molho especial.",
-    price: 8.0,
-    category: "Hambúrgueres",
-    available: true,
-  },
-  {
-    id: "3",
-    name: "Menu Almoço Pós-Galo",
-    description: "Prato do dia + bebida + café.",
-    price: 7.5,
-    category: "Menu do Dia",
-    available: true,
-  },
-  {
-    id: "4",
-    name: "Salada Fit da Capoeira",
-    description: "Mix de verdes, frango grelhado e molho de iogurte.",
-    price: 7.0,
-    category: "Saladas",
-    available: false,
-  },
-];
+/*
+ * Instead of relying on hardcoded mock meals, we fetch the list of meals
+ * directly from the AdminContext. This allows the admin to add new
+ * meals, update stock and create promotions that are immediately
+ * reflected in the client interface. A promotion is considered active
+ * when the current time is between startAt and endAt. If active, the
+ * discount is applied to the displayed price and flagged with a tag.
+ */
 
 const RefeicoesScreen: React.FC = () => {
-  const [meals] = useState<Meal[]>(MOCK_MEALS);
+  const { meals } = useAdmin();
   const { addToCart } = useCart();
 
   const renderMeal = ({ item }: { item: Meal }) => {
+    // Determine if there's an active promotion and calculate discounted price
+    let isPromo = false;
+    let promoPrice = item.price;
+    if (item.promo) {
+      const now = new Date();
+      const start = new Date(item.promo.startAt);
+      const end = new Date(item.promo.endAt);
+      if (now >= start && now <= end) {
+        isPromo = true;
+        promoPrice = item.price * (1 - item.promo.discountPercent / 100);
+      }
+    }
+    // When adding to cart, we create a copy of the meal and override the price
+    const handleAdd = () => {
+      const mealToAdd: Meal = { ...item, price: promoPrice };
+      addToCart(mealToAdd);
+    };
     return (
       <View style={[styles.card, !item.available && styles.cardUnavailable]}>
         <View style={styles.cardHeader}>
           <Text style={styles.mealName}>{item.name}</Text>
-          <Text style={styles.mealPrice}>{item.price.toFixed(2)} €</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            {isPromo ? (
+              <>
+                <Text style={[styles.mealPrice, styles.originalPrice]}> 
+                  {item.price.toFixed(2)} €
+                </Text>
+                <Text style={styles.mealPrice}>{promoPrice.toFixed(2)} €</Text>
+              </>
+            ) : (
+              <Text style={styles.mealPrice}>{item.price.toFixed(2)} €</Text>
+            )}
+          </View>
         </View>
 
         <Text style={styles.category}>{item.category}</Text>
@@ -71,6 +73,9 @@ const RefeicoesScreen: React.FC = () => {
           >
             {item.available ? "Disponível" : "Indisponível"}
           </Text>
+          {isPromo && (
+            <Text style={[styles.tag, styles.tagPromo]}>Promoção</Text>
+          )}
         </View>
 
         <TouchableOpacity
@@ -79,7 +84,7 @@ const RefeicoesScreen: React.FC = () => {
             styles.addButton,
             !item.available && styles.addButtonDisabled,
           ]}
-          onPress={() => addToCart(item)}
+          onPress={handleAdd}
         >
           <Text style={styles.addButtonText}>
             {item.available ? "Adicionar ao Pedido" : "Indisponível"}
@@ -93,10 +98,9 @@ const RefeicoesScreen: React.FC = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Refeições Disponíveis</Text>
       <Text style={styles.subtitle}>
-        Estes dados são apenas de exemplo. No futuro, vão ser carregados de uma
-        API com os menus reais da ComidaPósGalos.
+        O menu abaixo reflete os dados geridos pelo administrador. As promoções
+        aplicadas na área de admin são automaticamente consideradas.
       </Text>
-
       <FlatList
         data={meals}
         keyExtractor={(item) => item.id}
@@ -165,6 +169,12 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#FF9F1C",
   },
+  // When a promotion is active, the original price is shown with a line-through
+  originalPrice: {
+    fontSize: 12,
+    color: "#777",
+    textDecorationLine: "line-through",
+  },
   category: {
     fontSize: 12,
     color: "#FF9F1C",
@@ -198,6 +208,9 @@ const styles = StyleSheet.create({
   },
   tagUnavailable: {
     backgroundColor: "#9E9E9E",
+  },
+  tagPromo: {
+    backgroundColor: "#8BC34A",
   },
   addButton: {
     backgroundColor: "#FF6F59",

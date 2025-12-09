@@ -10,17 +10,31 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useCart, Order } from "../context/CartContext";
+import { useAdmin } from "../context/AdminContext";
 import { useAuth } from "../context/AuthContext";
 
 export default function Conta() {
   const router = useRouter();
   const { orders } = useCart();
   const { user, updateUser, logout } = useAuth();
+  const { addReport } = useAdmin();
 
   const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(false);
+
+  // State for reporting a specific order
+  const [isReportModalVisible, setReportModalVisible] = useState(false);
+  const [reportOrderId, setReportOrderId] = useState<string | null>(null);
+  const REPORT_TYPES = [
+    "Pedido mal feito",
+    "Item em falta",
+    "Atraso na entrega",
+    "Outro",
+  ];
+  const [selectedReportType, setSelectedReportType] = useState<string>(REPORT_TYPES[0]);
+  const [reportDesc, setReportDesc] = useState("");
 
   const [editName, setEditName] = useState(user?.name || "");
   const [editEmail, setEditEmail] = useState(user?.email || "");
@@ -74,7 +88,7 @@ export default function Conta() {
   const renderOrder = ({ item }: { item: Order }) => {
     const date = new Date(item.createdAt);
     return (
-      <View className="orderCard" style={styles.orderCard}>
+      <View style={styles.orderCard}>
         <Text style={styles.orderTitle}>
           Pedido #{item.id} - {item.total.toFixed(2)} €
         </Text>
@@ -87,6 +101,17 @@ export default function Conta() {
             • {meal.name} ({meal.price.toFixed(2)} €)
           </Text>
         ))}
+        <TouchableOpacity
+          style={styles.reportButton}
+          onPress={() => {
+            setReportOrderId(item.id);
+            setSelectedReportType(REPORT_TYPES[0]);
+            setReportDesc("");
+            setReportModalVisible(true);
+          }}
+        >
+          <Text style={styles.reportButtonText}>Reportar Problema</Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -188,6 +213,71 @@ export default function Conta() {
         No futuro, estes dados podem ser guardados numa base de dados via API,
         permitindo também calcular faturamento na área de admin.
       </Text>
+
+      {/* Modal para reportar um pedido */}
+      <Modal
+        visible={isReportModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReportModalVisible(false)}
+      >
+        <View style={styles.modalOuter}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Reportar Pedido</Text>
+            <Text style={styles.modalInfo}>
+              Seleciona o tipo de problema e descreve o que aconteceu.
+            </Text>
+            {REPORT_TYPES.map((type) => (
+              <TouchableOpacity
+                key={type}
+                style={styles.reportTypeRow}
+                onPress={() => setSelectedReportType(type)}
+              >
+                <View
+                  style={[
+                    styles.radioOuter,
+                    selectedReportType === type && styles.radioOuterActive,
+                  ]}
+                >
+                  {selectedReportType === type && <View style={styles.radioInner} />}
+                </View>
+                <Text style={styles.reportTypeLabel}>{type}</Text>
+              </TouchableOpacity>
+            ))}
+            <TextInput
+              style={[styles.input, { height: 80 }]}
+              placeholder="Descreve o problema (máx 4000 carateres)"
+              value={reportDesc}
+              onChangeText={setReportDesc}
+              multiline
+              maxLength={4000}
+            />
+            <View style={styles.editButtonsRow}>
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: "#BDBDBD" }]}
+                onPress={() => setReportModalVisible(false)}
+              >
+                <Text style={styles.saveButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveButton}
+                onPress={() => {
+                  if (!reportOrderId || !user) return;
+                  addReport({
+                    clientEmail: user.email,
+                    orderId: reportOrderId,
+                    type: selectedReportType,
+                    description: reportDesc,
+                  });
+                  setReportModalVisible(false);
+                }}
+              >
+                <Text style={styles.saveButtonText}>Enviar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Modal para pedir password antes de editar */}
       <Modal
@@ -301,7 +391,9 @@ const styles = StyleSheet.create({
   editButtonsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 8,
+    // Remove gap property as it is not supported in React Native versions prior to 0.71.
+    // Spacing between children can be handled via margin on the child components if needed.
+    // gap: 8,
     marginBottom: 20,
   },
   saveButton: {
@@ -355,10 +447,52 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#555",
   },
+  reportButton: {
+    backgroundColor: "#FF9F1C",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    marginTop: 6,
+    alignSelf: "flex-start",
+  },
+  reportButtonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
   footer: {
     marginTop: 10,
     fontSize: 13,
     color: "#666",
+  },
+  // For report modal radio buttons
+  reportTypeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#FF9F1C",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  radioOuterActive: {
+    borderColor: "#FF6F59",
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FF6F59",
+  },
+  reportTypeLabel: {
+    fontSize: 14,
+    color: "#333",
   },
   modalOuter: {
     flex: 1,

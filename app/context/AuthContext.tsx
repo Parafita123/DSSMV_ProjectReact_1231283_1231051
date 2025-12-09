@@ -6,6 +6,10 @@ import React, {
   useMemo,
 } from "react";
 
+// We extend the User model to support different roles and admin flags.
+// Each user has a role that determines which area of the app they can access.
+// By default, users are of type "client", but an admin user has role "admin".
+// We also add banned and blocked flags so the admin can control access.
 export type User = {
   name: string;
   email: string;
@@ -13,6 +17,9 @@ export type User = {
   address: string;
   phone: string;
   password: string;
+  role: "client" | "admin" | "employee";
+  banned: boolean;
+  blocked: boolean;
 };
 
 type AuthContextType = {
@@ -22,11 +29,17 @@ type AuthContextType = {
   login: (email: string, password: string) => { success: boolean; message?: string };
   logout: () => void;
   updateUser: (data: Partial<User>) => void;
+  /**
+   * Expose the list of users so that admin screens can list clients and employees.
+   */
+  users: User[];
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// 🔹 dois utilizadores mock
+// 🔹 utilizadores mock
+// We seed the context with two regular client accounts and a special admin account.
 const MOCK_USERS: User[] = [
   {
     name: "Cliente Cheio",
@@ -35,6 +48,9 @@ const MOCK_USERS: User[] = [
     address: "Rua dos Galos Cheios, 1",
     phone: "910000001",
     password: "123456",
+    role: "client",
+    banned: false,
+    blocked: false,
   },
   {
     name: "Cliente Vazio",
@@ -43,6 +59,20 @@ const MOCK_USERS: User[] = [
     address: "Rua dos Galos Vazios, 2",
     phone: "910000002",
     password: "123456",
+    role: "client",
+    banned: false,
+    blocked: false,
+  },
+  {
+    name: "Guta",
+    email: "guta@gmail.com",
+    nif: "000000000",
+    address: "",
+    phone: "",
+    password: "1231051",
+    role: "admin",
+    banned: false,
+    blocked: false,
   },
 ];
 
@@ -57,8 +87,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (exists) {
       return { success: false, message: "Já existe uma conta com este email." };
     }
-    setUsers((prev) => [...prev, data]);
-    setCurrentEmail(data.email);
+    // Always register a user with role client and default flags unless they are explicitly provided
+    const newUser: User = {
+      ...data,
+      role: data.role ?? "client",
+      banned: data.banned ?? false,
+      blocked: data.blocked ?? false,
+    };
+    setUsers((prev) => [...prev, newUser]);
+    setCurrentEmail(newUser.email);
     return { success: true };
   };
 
@@ -68,6 +105,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     );
     if (!user) {
       return { success: false, message: "Email ou password inválidos." };
+    }
+    if (user.banned) {
+      return { success: false, message: "Esta conta está banida." };
+    }
+    if (user.blocked) {
+      return { success: false, message: "Esta conta está bloqueada." };
     }
     setCurrentEmail(user.email);
     return { success: true };
@@ -94,6 +137,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       login,
       logout,
       updateUser,
+      users,
+      setUsers,
     }),
     [currentUser, users]
   );

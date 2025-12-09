@@ -15,11 +15,17 @@ import { useAuth } from "./context/AuthContext";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { isAuthenticated, user, login, register } = useAuth();
+  const { isAuthenticated, user, login, register, users } = useAuth();
 
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState<string | null>(null);
+
+  // admin login modal state
+  const [adminModalVisible, setAdminModalVisible] = useState(false);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminError, setAdminError] = useState<string | null>(null);
 
   // campos login
   const [loginEmail, setLoginEmail] = useState("");
@@ -41,6 +47,37 @@ export default function HomeScreen() {
       setMode("login");
       setError(null);
     }
+  };
+
+  const openAdminArea = () => {
+    // If already authenticated as admin, go directly to admin home
+    if (isAuthenticated && user && user.role === "admin") {
+      router.push("/AdminHome");
+    } else {
+      setAdminEmail("");
+      setAdminPassword("");
+      setAdminError(null);
+      setAdminModalVisible(true);
+    }
+  };
+
+  const handleAdminLogin = () => {
+    const result = login(adminEmail.trim(), adminPassword);
+    if (!result.success) {
+      setAdminError(result.message || "Erro no login.");
+      return;
+    }
+    // find the user in the auth users list
+    const found = users.find((u) => u.email === adminEmail.trim());
+    if (!found || found.role !== "admin") {
+      setAdminError("Apenas administradores podem entrar nesta área.");
+      return;
+    }
+    setAdminModalVisible(false);
+    setAdminEmail("");
+    setAdminPassword("");
+    setAdminError(null);
+    router.push("/AdminHome");
   };
 
   const resetForms = () => {
@@ -72,6 +109,9 @@ export default function HomeScreen() {
       return;
     }
 
+    // Provide default values for role, banned and blocked so that the object conforms
+    // to the User type defined in AuthContext. When omitted these fields default
+    // to undefined which causes a TypeScript error because User requires them.
     const result = register({
       name: name.trim(),
       email: email.trim(),
@@ -79,6 +119,9 @@ export default function HomeScreen() {
       address: address.trim(),
       phone: phone.trim(),
       password,
+      role: "client",
+      banned: false,
+      blocked: false,
     });
 
     if (!result.success) {
@@ -110,166 +153,222 @@ export default function HomeScreen() {
 
         <TouchableOpacity
           style={[styles.button, styles.adminButton]}
-          onPress={() => {
-            console.log("Área de admin por implementar");
-          }}
+          onPress={openAdminArea}
         >
           <Text style={styles.buttonText}>Área de Admin</Text>
         </TouchableOpacity>
       </View>
 
-      {/* MODAL DE LOGIN / REGISTO */}
-      <Modal
-        visible={authModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setAuthModalVisible(false)}
-      >
-        <KeyboardAvoidingView
-          style={styles.modalOuter}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {mode === "login" ? "Login" : "Criar Conta"}
-              </Text>
-              <TouchableOpacity
-                onPress={() => setAuthModalVisible(false)}
-                style={styles.closeButton}
-              >
-                <Text style={styles.closeButtonText}>X</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modeSwitchRow}>
-              <TouchableOpacity
-                style={[
-                  styles.modeButton,
-                  mode === "login" && styles.modeButtonActive,
-                ]}
-                onPress={() => {
-                  setMode("login");
-                  setError(null);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.modeButtonText,
-                    mode === "login" && styles.modeButtonTextActive,
-                  ]}
-                >
-                  Já tenho conta
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.modeButton,
-                  mode === "register" && styles.modeButtonActive,
-                ]}
-                onPress={() => {
-                  setMode("register");
-                  setError(null);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.modeButtonText,
-                    mode === "register" && styles.modeButtonTextActive,
-                  ]}
-                >
-                  Registar-me
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {error && <Text style={styles.errorText}>{error}</Text>}
-
-            <ScrollView
-              contentContainerStyle={{ paddingBottom: 10 }}
-              showsVerticalScrollIndicator={false}
+      {/* MODAL DE LOGIN ADMIN
+         A known issue in expo-router prevents Modals from rendering on top of a Stack.
+         Wrapping the Modal in a full-screen absolute-positioned View resolves the
+         problem where only a black overlay is shown【198878935596254†L240-L400】. */}
+      {adminModalVisible && (
+        <View style={styles.modalWrapper}>
+          <Modal
+            visible={adminModalVisible}
+            animationType="slide"
+            transparent
+            onRequestClose={() => setAdminModalVisible(false)}
+          >
+            <KeyboardAvoidingView
+              style={styles.modalOuter}
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
             >
-              {mode === "login" ? (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    value={loginEmail}
-                    onChangeText={setLoginEmail}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    secureTextEntry
-                    value={loginPassword}
-                    onChangeText={setLoginPassword}
-                  />
-
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Login de Admin</Text>
                   <TouchableOpacity
-                    style={styles.submitButton}
-                    onPress={handleLogin}
+                    onPress={() => setAdminModalVisible(false)}
+                    style={styles.closeButton}
                   >
-                    <Text style={styles.submitButtonText}>Entrar</Text>
+                    <Text style={styles.closeButtonText}>X</Text>
                   </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Nome"
-                    value={name}
-                    onChangeText={setName}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Email"
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    value={email}
-                    onChangeText={setEmail}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="NIF"
-                    keyboardType="numeric"
-                    value={nif}
-                    onChangeText={setNif}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Morada"
-                    value={address}
-                    onChangeText={setAddress}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Telemóvel"
-                    keyboardType="phone-pad"
-                    value={phone}
-                    onChangeText={setPhone}
-                  />
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Password"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                  />
+                </View>
+                {adminError && <Text style={styles.errorText}>{adminError}</Text>}
+                <TextInput
+                  style={styles.input}
+                  placeholder="Email de admin"
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  value={adminEmail}
+                  onChangeText={setAdminEmail}
+                />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Password"
+                  secureTextEntry
+                  value={adminPassword}
+                  onChangeText={setAdminPassword}
+                />
+                <TouchableOpacity
+                  style={styles.submitButton}
+                  onPress={handleAdminLogin}
+                >
+                  <Text style={styles.submitButtonText}>Entrar</Text>
+                </TouchableOpacity>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
+        </View>
+      )}
 
+      {/* MODAL DE LOGIN / REGISTO */}
+      {authModalVisible && (
+        <View style={styles.modalWrapper}>
+          <Modal
+            visible={authModalVisible}
+            animationType="slide"
+            transparent
+            onRequestClose={() => setAuthModalVisible(false)}
+          >
+            <KeyboardAvoidingView
+              style={styles.modalOuter}
+              behavior={Platform.OS === "ios" ? "padding" : undefined}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>
+                    {mode === "login" ? "Login" : "Criar Conta"}
+                  </Text>
                   <TouchableOpacity
-                    style={styles.submitButton}
-                    onPress={handleRegister}
+                    onPress={() => setAuthModalVisible(false)}
+                    style={styles.closeButton}
                   >
-                    <Text style={styles.submitButtonText}>Criar Conta</Text>
+                    <Text style={styles.closeButtonText}>X</Text>
                   </TouchableOpacity>
-                </>
-              )}
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+                </View>
+
+                <View style={styles.modeSwitchRow}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modeButton,
+                      mode === "login" && styles.modeButtonActive,
+                    ]}
+                    onPress={() => {
+                      setMode("login");
+                      setError(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.modeButtonText,
+                        mode === "login" && styles.modeButtonTextActive,
+                      ]}
+                    >
+                      Já tenho conta
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modeButton,
+                      mode === "register" && styles.modeButtonActive,
+                    ]}
+                    onPress={() => {
+                      setMode("register");
+                      setError(null);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.modeButtonText,
+                        mode === "register" && styles.modeButtonTextActive,
+                      ]}
+                    >
+                      Registar-me
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {error && <Text style={styles.errorText}>{error}</Text>}
+
+                <ScrollView
+                  contentContainerStyle={{ paddingBottom: 10 }}
+                  showsVerticalScrollIndicator={false}
+                >
+                  {mode === "login" ? (
+                    <>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Email"
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        value={loginEmail}
+                        onChangeText={setLoginEmail}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Password"
+                        secureTextEntry
+                        value={loginPassword}
+                        onChangeText={setLoginPassword}
+                      />
+
+                      <TouchableOpacity
+                        style={styles.submitButton}
+                        onPress={handleLogin}
+                      >
+                        <Text style={styles.submitButtonText}>Entrar</Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Nome"
+                        value={name}
+                        onChangeText={setName}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Email"
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        value={email}
+                        onChangeText={setEmail}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="NIF"
+                        keyboardType="numeric"
+                        value={nif}
+                        onChangeText={setNif}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Morada"
+                        value={address}
+                        onChangeText={setAddress}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Telemóvel"
+                        keyboardType="phone-pad"
+                        value={phone}
+                        onChangeText={setPhone}
+                      />
+                      <TextInput
+                        style={styles.input}
+                        placeholder="Password"
+                        secureTextEntry
+                        value={password}
+                        onChangeText={setPassword}
+                      />
+
+                      <TouchableOpacity
+                        style={styles.submitButton}
+                        onPress={handleRegister}
+                      >
+                        <Text style={styles.submitButtonText}>Criar Conta</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
+        </View>
+      )}
     </>
   );
 }
@@ -318,6 +417,16 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
     paddingHorizontal: 16,
+  },
+  // Wrapper used to work around an expo-router bug where Modal only shows a black
+  // overlay when used inside a Stack. The wrapper fills the screen and gives
+  // the Modal a positioned parent【198878935596254†L240-L400】.
+  modalWrapper: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    top: 0,
+    left: 0,
   },
   modalContent: {
     backgroundColor: "#FFF",

@@ -15,6 +15,11 @@ export type Meal = {
   category: string;
   spicy?: boolean;
   available: boolean;
+  // How many units are currently in stock. When 0 the meal should be marked unavailable.
+  stock?: number;
+  // Optional promotion applied to the meal. If present and the current date is between
+  // startAt and endAt then the price displayed to the client should reflect the discount.
+  promo?: { discountPercent: number; startAt: string; endAt: string } | null;
 };
 
 export type Order = {
@@ -22,6 +27,10 @@ export type Order = {
   items: Meal[];
   total: number;
   createdAt: string;
+  /**
+   * Email of the client that placed this order. Useful for admin views.
+   */
+  clientEmail: string;
 };
 
 type CartState = {
@@ -40,6 +49,20 @@ type CartContextType = {
 };
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+// Keep a flat list of all orders placed across all users. When the app starts, we seed
+// this list with the mock orders defined in the initial state. When new orders are
+// placed via `placeOrder()`, they will be added to this list. Admin screens rely on
+// this to calculate billing across the entire application.
+const globalOrders: Order[] = [];
+
+/**
+ * Expose a helper to retrieve all orders. It returns a shallow copy so that
+ * consumers cannot mutate the original array.
+ */
+export const getAllOrders = (): Order[] => {
+  return [...globalOrders];
+};
 
 // 🔹 refeições de exemplo para o mock
 const SAMPLE_MEALS: Meal[] = [
@@ -72,6 +95,7 @@ const initialStateByUser: Record<string, CartState> = {
         items: [SAMPLE_MEALS[0], SAMPLE_MEALS[1]],
         total: SAMPLE_MEALS[0].price + SAMPLE_MEALS[1].price,
         createdAt: new Date().toISOString(),
+        clientEmail: "cliente.cheio@comidaposgalos.pt",
       },
     ],
   },
@@ -80,6 +104,13 @@ const initialStateByUser: Record<string, CartState> = {
     orders: [],
   },
 };
+
+// Seed globalOrders with the orders from the initial state
+Object.values(initialStateByUser).forEach((state) => {
+  state.orders.forEach((order) => {
+    globalOrders.push(order);
+  });
+});
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
@@ -126,12 +157,18 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
       if (current.cartItems.length === 0) return current;
 
       const total = current.cartItems.reduce((sum, m) => sum + m.price, 0);
+      // assign the order to the current user if present; otherwise mark as guest
+      const clientEmail = user?.email ?? "__guest__";
       const newOrder: Order = {
         id: Date.now().toString(),
         items: current.cartItems,
         total,
         createdAt: new Date().toISOString(),
+        clientEmail,
       };
+
+      // Add to global list so that admin screens can access it
+      globalOrders.unshift(newOrder);
 
       return {
         cartItems: [],
