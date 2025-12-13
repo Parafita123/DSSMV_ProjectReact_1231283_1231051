@@ -139,11 +139,19 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const removeFromCart = (mealId: string) => {
-    setActiveState((current) => ({
+  setActiveState((current) => {
+    const index = current.cartItems.findIndex((m) => m.id === mealId);
+    if (index === -1) return current;
+
+    const updated = [...current.cartItems];
+    updated.splice(index, 1); // remove só 1 ocorrência
+
+    return {
       ...current,
-      cartItems: current.cartItems.filter((m) => m.id !== mealId),
-    }));
-  };
+      cartItems: updated,
+    };
+  });
+};
 
   const clearCart = () => {
     setActiveState((current) => ({
