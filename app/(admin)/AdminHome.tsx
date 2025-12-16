@@ -1,6 +1,8 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
+import React from "react";
+import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { useAuth } from "../context/AuthContext";
+
 
 /**
  * Home screen for the administration area. From here the administrator can
@@ -9,6 +11,45 @@ import { useRouter } from "expo-router";
  */
 export default function AdminHome() {
   const router = useRouter();
+  const { logout } = useAuth();
+
+  /**
+   * Prompt the administrator before logging out. If confirmed, perform the
+   * logout and navigate back to the home screen. This ensures that the
+   * session is cleared and the user must log in again to access the admin
+   * area.
+   */
+  const handleLogout = () => {
+  // 🟢 WEB (Expo Web)
+  if (Platform.OS === "web") {
+    const confirmed = window.confirm(
+      "Tem a certeza que pretende terminar sessão?"
+    );
+    if (confirmed) {
+      logout();
+      router.replace("/");
+    }
+    return;
+  }
+
+  // 🟢 ANDROID / IOS
+  Alert.alert(
+    "Terminar sessão",
+    "Tem a certeza que pretende terminar sessão?",
+    [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Confirmar",
+        style: "destructive",
+        onPress: () => {
+          logout();
+          router.replace("/");
+        },
+      },
+    ]
+  );
+};
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Área de Administração</Text>
@@ -57,6 +98,15 @@ export default function AdminHome() {
       >
         <Text style={styles.buttonText}>Reports</Text>
       </TouchableOpacity>
+
+      {/* Logout button placed at the bottom. Uses a distinct style to
+         differentiate it from other navigation buttons. */}
+      <TouchableOpacity
+        style={[styles.button, styles.logoutButton]}
+        onPress={handleLogout}
+      >
+        <Text style={styles.buttonText}>Terminar Sessão</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -93,5 +143,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  // Style for the logout button. We reuse the base button styles but
+  // override the background color to differentiate it from the other
+  // options. You can customize this further if desired.
+  logoutButton: {
+    backgroundColor: "#FF6F59",
   },
 });

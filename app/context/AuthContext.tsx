@@ -1,9 +1,9 @@
 import React, {
   createContext,
-  useContext,
-  useState,
   ReactNode,
+  useContext,
   useMemo,
+  useState,
 } from "react";
 
 // We extend the User model to support different roles and admin flags.
@@ -100,8 +100,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const login = (email: string, password: string) => {
+    // Normalize email to lower case to allow case-insensitive login. Trim to
+    // remove accidental whitespace. Without this, a user might fail to log in
+    // even if the credentials match but casing differs.
+    const normalizedEmail = email.trim().toLowerCase();
     const user = users.find(
-      (u) => u.email === email.trim() && u.password === password
+      (u) => u.email.toLowerCase() === normalizedEmail && u.password === password
     );
     if (!user) {
       return { success: false, message: "Email ou password inválidos." };

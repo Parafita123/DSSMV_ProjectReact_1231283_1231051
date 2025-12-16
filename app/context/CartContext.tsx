@@ -6,6 +6,7 @@ import React, {
   ReactNode,
 } from "react";
 import { useAuth } from "./AuthContext";
+import { useAdmin } from "./AdminContext";
 
 export type Meal = {
   id: string;
@@ -114,6 +115,12 @@ Object.values(initialStateByUser).forEach((state) => {
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
+
+  // Access the admin context so that we can update stock levels when orders
+  // are placed. The AdminProvider wraps CartProvider in the app hierarchy, so
+  // this hook call is safe here. Using destructuring ensures only the
+  // updateStock function is extracted, avoiding unnecessary re-renders.
+  const { updateStock } = useAdmin();
   const [stateByUser, setStateByUser] = useState<Record<string, CartState>>(
     initialStateByUser
   );
@@ -161,6 +168,22 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const placeOrder = () => {
+    // Before clearing the cart and recording the order, decrease the stock
+    // for each meal in the current cart. Each occurrence of a meal
+    // represents one unit ordered. We capture the active state's cart items
+    // here because state updates are asynchronous.
+    const itemsToDecrease = activeState.cartItems;
+    if (itemsToDecrease.length === 0) {
+      return;
+    }
+    itemsToDecrease.forEach((meal) => {
+      // Reduce stock by 1 for each item. updateStock will ensure stock never
+      // becomes negative and will mark availability accordingly.
+      if (meal.id) {
+        updateStock(meal.id, -1);
+      }
+    });
+
     setActiveState((current) => {
       if (current.cartItems.length === 0) return current;
 
