@@ -7,11 +7,11 @@ import { AdminProvider } from "./context/AdminContext";
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <AdminProvider>
-        <CartProvider>
-          <Stack />
-        </CartProvider>
-      </AdminProvider>
-    </AuthProvider>
+  <AdminProvider>
+    <CartProvider>
+      <Stack />
+    </CartProvider>
+  </AdminProvider>
+</AuthProvider>
   );
 }

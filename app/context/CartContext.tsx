@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useMemo,
-  useState,
-  ReactNode,
-} from "react";
+import React, { createContext, useContext, useMemo, useReducer, ReactNode } from "react";
 import { useAuth } from "./AuthContext";
 import { useAdmin } from "./AdminContext";
 
@@ -16,10 +10,7 @@ export type Meal = {
   category: string;
   spicy?: boolean;
   available: boolean;
-  // How many units are currently in stock. When 0 the meal should be marked unavailable.
   stock?: number;
-  // Optional promotion applied to the meal. If present and the current date is between
-  // startAt and endAt then the price displayed to the client should reflect the discount.
   promo?: { discountPercent: number; startAt: string; endAt: string } | null;
 };
 
@@ -28,9 +19,6 @@ export type Order = {
   items: Meal[];
   total: number;
   createdAt: string;
-  /**
-   * Email of the client that placed this order. Useful for admin views.
-   */
   clientEmail: string;
 };
 
@@ -39,11 +27,19 @@ type CartState = {
   orders: Order[];
 };
 
+type StateByUser = Record<string, CartState>;
+
+type CartAction =
+  | { type: "ADD_TO_CART"; payload: { key: string; meal: Meal } }
+  | { type: "REMOVE_ONE_FROM_CART"; payload: { key: string; mealId: string } }
+  | { type: "CLEAR_CART"; payload: { key: string } }
+  | { type: "PLACE_ORDER"; payload: { key: string; order: Order } };
+
 type CartContextType = {
   cartItems: Meal[];
   totalItems: number;
   addToCart: (meal: Meal) => void;
-  removeFromCart: (mealId: string) => void;
+  removeFromCart: (mealId: string) => void; // remove 1 ocorrência
   clearCart: () => void;
   orders: Order[];
   placeOrder: () => void;
@@ -51,21 +47,9 @@ type CartContextType = {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
-// Keep a flat list of all orders placed across all users. When the app starts, we seed
-// this list with the mock orders defined in the initial state. When new orders are
-// placed via `placeOrder()`, they will be added to this list. Admin screens rely on
-// this to calculate billing across the entire application.
 const globalOrders: Order[] = [];
+export const getAllOrders = (): Order[] => [...globalOrders];
 
-/**
- * Expose a helper to retrieve all orders. It returns a shallow copy so that
- * consumers cannot mutate the original array.
- */
-export const getAllOrders = (): Order[] => {
-  return [...globalOrders];
-};
-
-// 🔹 refeições de exemplo para o mock
 const SAMPLE_MEALS: Meal[] = [
   {
     id: "1",
@@ -86,126 +70,110 @@ const SAMPLE_MEALS: Meal[] = [
   },
 ];
 
-// 🔹 estado inicial por utilizador
-const initialStateByUser: Record<string, CartState> = {
-  "cliente.cheio@comidaposgalos.pt": {
-    cartItems: [SAMPLE_MEALS[0]], // 1 refeição no carrinho
+const initialStateByUser: StateByUser = {
+  "cheio@gmail.com": {
+    cartItems: [SAMPLE_MEALS[0]],
     orders: [
       {
         id: "MOCK-001",
         items: [SAMPLE_MEALS[0], SAMPLE_MEALS[1]],
         total: SAMPLE_MEALS[0].price + SAMPLE_MEALS[1].price,
         createdAt: new Date().toISOString(),
-        clientEmail: "cliente.cheio@comidaposgalos.pt",
+        clientEmail: "cheio@gmail.com",
       },
     ],
   },
-  "cliente.vazio@comidaposgalos.pt": {
+  "vazio@gmail.com": {
     cartItems: [],
     orders: [],
   },
 };
 
-// Seed globalOrders with the orders from the initial state
-Object.values(initialStateByUser).forEach((state) => {
-  state.orders.forEach((order) => {
-    globalOrders.push(order);
-  });
-});
+Object.values(initialStateByUser).forEach((s) => s.orders.forEach((o) => globalOrders.push(o)));
+
+function cartReducer(state: StateByUser, action: CartAction): StateByUser {
+  const key = action.payload.key;
+  const current = state[key] || { cartItems: [], orders: [] };
+
+  switch (action.type) {
+    case "ADD_TO_CART": {
+      return {
+        ...state,
+        [key]: { ...current, cartItems: [...current.cartItems, action.payload.meal] },
+      };
+    }
+
+    case "REMOVE_ONE_FROM_CART": {
+      const idx = current.cartItems.findIndex((m) => m.id === action.payload.mealId);
+      if (idx === -1) return state;
+
+      const updated = [...current.cartItems];
+      updated.splice(idx, 1);
+
+      return { ...state, [key]: { ...current, cartItems: updated } };
+    }
+
+    case "CLEAR_CART":
+      return { ...state, [key]: { ...current, cartItems: [] } };
+
+    case "PLACE_ORDER":
+      return {
+        ...state,
+        [key]: {
+          cartItems: [],
+          orders: [action.payload.order, ...current.orders],
+        },
+      };
+
+    default:
+      return state;
+  }
+}
 
 export const CartProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
-
-  // Access the admin context so that we can update stock levels when orders
-  // are placed. The AdminProvider wraps CartProvider in the app hierarchy, so
-  // this hook call is safe here. Using destructuring ensures only the
-  // updateStock function is extracted, avoiding unnecessary re-renders.
   const { updateStock } = useAdmin();
-  const [stateByUser, setStateByUser] = useState<Record<string, CartState>>(
-    initialStateByUser
-  );
+
+  const [stateByUser, dispatch] = useReducer(cartReducer, initialStateByUser);
 
   const activeKey = user?.email ?? "__guest__";
-
-  const activeState: CartState =
-    stateByUser[activeKey] || { cartItems: [], orders: [] };
-
-  const setActiveState = (updater: (current: CartState) => CartState) => {
-    setStateByUser((prev) => {
-      const current = prev[activeKey] || { cartItems: [], orders: [] };
-      const updated = updater(current);
-      return { ...prev, [activeKey]: updated };
-    });
-  };
+  const activeState = stateByUser[activeKey] || { cartItems: [], orders: [] };
 
   const addToCart = (meal: Meal) => {
-    setActiveState((current) => ({
-      ...current,
-      cartItems: [...current.cartItems, meal],
-    }));
+    dispatch({ type: "ADD_TO_CART", payload: { key: activeKey, meal } });
   };
 
   const removeFromCart = (mealId: string) => {
-  setActiveState((current) => {
-    const index = current.cartItems.findIndex((m) => m.id === mealId);
-    if (index === -1) return current;
-
-    const updated = [...current.cartItems];
-    updated.splice(index, 1); // remove só 1 ocorrência
-
-    return {
-      ...current,
-      cartItems: updated,
-    };
-  });
-};
+    dispatch({ type: "REMOVE_ONE_FROM_CART", payload: { key: activeKey, mealId } });
+  };
 
   const clearCart = () => {
-    setActiveState((current) => ({
-      ...current,
-      cartItems: [],
-    }));
+    dispatch({ type: "CLEAR_CART", payload: { key: activeKey } });
   };
 
   const placeOrder = () => {
-    // Before clearing the cart and recording the order, decrease the stock
-    // for each meal in the current cart. Each occurrence of a meal
-    // represents one unit ordered. We capture the active state's cart items
-    // here because state updates are asynchronous.
-    const itemsToDecrease = activeState.cartItems;
-    if (itemsToDecrease.length === 0) {
-      return;
-    }
-    itemsToDecrease.forEach((meal) => {
-      // Reduce stock by 1 for each item. updateStock will ensure stock never
-      // becomes negative and will mark availability accordingly.
-      if (meal.id) {
-        updateStock(meal.id, -1);
-      }
+    if (activeState.cartItems.length === 0) return;
+
+    // Side-effect 1: atualizar stock no admin (fora do reducer)
+    activeState.cartItems.forEach((meal) => {
+      if (meal.id) updateStock(meal.id, -1);
     });
 
-    setActiveState((current) => {
-      if (current.cartItems.length === 0) return current;
+    const total = activeState.cartItems.reduce((sum, m) => sum + m.price, 0);
+    const clientEmail = user?.email ?? "__guest__";
 
-      const total = current.cartItems.reduce((sum, m) => sum + m.price, 0);
-      // assign the order to the current user if present; otherwise mark as guest
-      const clientEmail = user?.email ?? "__guest__";
-      const newOrder: Order = {
-        id: Date.now().toString(),
-        items: current.cartItems,
-        total,
-        createdAt: new Date().toISOString(),
-        clientEmail,
-      };
+    const newOrder: Order = {
+      id: Date.now().toString(),
+      items: activeState.cartItems,
+      total,
+      createdAt: new Date().toISOString(),
+      clientEmail,
+    };
 
-      // Add to global list so that admin screens can access it
-      globalOrders.unshift(newOrder);
+    // Side-effect 2: lista global para faturação/admin
+    globalOrders.unshift(newOrder);
 
-      return {
-        cartItems: [],
-        orders: [newOrder, ...current.orders],
-      };
-    });
+    dispatch({ type: "PLACE_ORDER", payload: { key: activeKey, order: newOrder } });
   };
 
   const value = useMemo(
@@ -221,15 +189,12 @@ export const CartProvider = ({ children }: { children: ReactNode }) => {
     [activeState]
   );
 
-  return (
-    <CartContext.Provider value={value}>{children}</CartContext.Provider>
-  );
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
 export const useCart = (): CartContextType => {
   const ctx = useContext(CartContext);
-  if (!ctx) {
-    throw new Error("useCart deve ser usado dentro de um CartProvider");
-  }
+  if (!ctx) throw new Error("useCart deve ser usado dentro de um CartProvider");
   return ctx;
 };
+  
