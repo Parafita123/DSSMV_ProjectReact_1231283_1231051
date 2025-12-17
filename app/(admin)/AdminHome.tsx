@@ -3,7 +3,6 @@ import React from "react";
 import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
 import { useAuth } from "../context/AuthContext";
 
-
 /**
  * Home screen for the administration area. From here the administrator can
  * navigate to the various management modules. The screen uses a scroll view
@@ -19,8 +18,7 @@ export default function AdminHome() {
    * session is cleared and the user must log in again to access the admin
    * area.
    */
-  const handleLogout = () => {
-  // 🟢 WEB (Expo Web)
+ const handleLogout = () => {
   if (Platform.OS === "web") {
     const confirmed = window.confirm(
       "Tem a certeza que pretende terminar sessão?"
@@ -32,7 +30,6 @@ export default function AdminHome() {
     return;
   }
 
-  // 🟢 ANDROID / IOS
   Alert.alert(
     "Terminar sessão",
     "Tem a certeza que pretende terminar sessão?",
@@ -97,6 +94,14 @@ export default function AdminHome() {
         onPress={() => router.push("/AdminReports")}
       >
         <Text style={styles.buttonText}>Reports</Text>
+      </TouchableOpacity>
+
+      {/* New button: view client recipe suggestions */}
+      <TouchableOpacity
+        style={styles.button}
+        onPress={() => router.push("/AdminSuggestions")}
+      >
+        <Text style={styles.buttonText}>Ver Sugestões</Text>
       </TouchableOpacity>
 
       {/* Logout button placed at the bottom. Uses a distinct style to

@@ -70,6 +70,19 @@ export default function ClientMenuScreen() {
             Ver os menus e promoções disponíveis na app.
           </Text>
         </TouchableOpacity>
+
+        {/* New feature: AI‑powered recipe suggestion.  Clients can
+        select ingredients and generate a personalised recipe using the
+        RapidAPI service, then submit it as a suggestion to the admin. */}
+        <TouchableOpacity
+          style={[styles.button, styles.buttonBlue]}
+          onPress={() => router.push("/SugerirReceita")}
+        >
+          <Text style={styles.buttonTitle}>Sugerir Receita</Text>
+          <Text style={styles.buttonDescription}>
+            Gerar uma receita personalizada com IA e sugeri‑la ao menu.
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.footerText}>
@@ -161,6 +174,11 @@ const styles = StyleSheet.create({
   },
   buttonRed: {
     backgroundColor: "#FF6F59",
+  },
+
+  // Blue button for recipe suggestions
+  buttonBlue: {
+    backgroundColor: "#2EC4B6",
   },
   buttonTitle: {
     color: "#fff",
