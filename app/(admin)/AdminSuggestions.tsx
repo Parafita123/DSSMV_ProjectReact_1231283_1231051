@@ -1,17 +1,17 @@
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Modal,
   ActivityIndicator,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useRouter } from "expo-router";
-import { fetchTable, deleteRows, insertRow } from "../supabase";
 import { useAdmin } from "../context/AdminContext";
+import { deleteRows, fetchTable, insertRow } from "../supabase";
 
 /**
  * Screen that lists all recipe suggestions submitted by clients via the
@@ -71,17 +71,20 @@ export default function AdminSuggestions() {
     loadSuggestions();
   }, []);
 
-  const handleRemove = async (id: string) => {
-    try {
-      await deleteRows("suggestions", `id=eq.${id}`);
-      setSuggestions((prev) => prev.filter((s) => s.id !== id));
-    } catch (err: any) {
-      console.error(err);
-      alert(
-        err.message || "Erro ao remover sugestão. Tenta novamente mais tarde."
-      );
-    }
-  };
+ const handleRemove = async (id: string) => {
+  try {
+    await deleteRows("suggestions", `id=eq.${id}`);
+
+    // 🔥 REFRESCAR A LISTA A PARTIR DO SUPABASE
+    await loadSuggestions();
+  } catch (err: any) {
+    console.error(err);
+    alert(
+      err.message || "Erro ao remover sugestão. Tenta novamente mais tarde."
+    );
+  }
+};
+
 
   const handleAddToMenu = (suggestion: any) => {
     setSelected(suggestion);
@@ -114,20 +117,24 @@ export default function AdminSuggestions() {
         spicy: false,
         promo: null,
       });
-      // Remove suggestion from Supabase
-      await deleteRows("suggestions", `id=eq.${selected.id}`);
-      // Also update local admin context so the meal is visible immediately
-      addMeal({
-        name: form.name,
-        description: form.description,
-        category: form.category,
-        price: parseFloat(form.price),
-        spicy: false,
-        stock: parseInt(form.stock) || 0,
-      });
-      setSuggestions((prev) => prev.filter((s) => s.id !== selected.id));
-      setSelected(null);
-      alert("Refeição adicionada ao menu com sucesso!");
+ 
+     await deleteRows("suggestions", `id=eq.${selected.id}`);
+
+// 🔥 REFRESH TOTAL
+await loadSuggestions();
+
+addMeal({
+  name: form.name,
+  description: form.description,
+  category: form.category,
+  price: parseFloat(form.price),
+  spicy: false,
+  stock: parseInt(form.stock) || 0,
+});
+
+setSelected(null);
+alert("Refeição adicionada ao menu com sucesso!");
+
     } catch (err: any) {
       console.error(err);
       alert(
