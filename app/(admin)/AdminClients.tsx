@@ -23,6 +23,7 @@ export default function AdminClients() {
     unblockClient,
     reports,
     resolveReport,
+    removeClient,
   } = useAdmin();
 
   const orders = getAllOrders();
@@ -79,6 +80,17 @@ export default function AdminClients() {
                     onPress={() => blockClient(client.email)}
                   >
                     <Text style={styles.actionText}>Bloquear</Text>
+                  </TouchableOpacity>
+                )}
+                {/* Botão para remover cliente completamente */}
+                {removeClient && (
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => {
+                      removeClient(client.email);
+                    }}
+                  >
+                    <Text style={styles.actionText}>Remover</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -208,6 +220,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,
+  },
+  deleteButton: {
+    backgroundColor: "#FF3B30",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginLeft: 8,
   },
   actionText: {
     color: "#fff",

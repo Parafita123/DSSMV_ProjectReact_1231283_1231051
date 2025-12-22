@@ -69,8 +69,8 @@ export default function Conta() {
     setCanEdit(true);
   };
 
-  const handleSaveChanges = () => {
-    updateUser({
+  const handleSaveChanges = async () => {
+    await updateUser({
       name: editName,
       email: editEmail,
       nif: editNif,

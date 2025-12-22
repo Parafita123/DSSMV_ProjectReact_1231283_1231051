@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { useAdmin } from "../context/AdminContext";
-import { deleteRows, fetchTable, insertRow } from "../supabase";
+import { deleteRows, fetchTable } from "../supabase";
 
 /**
  * Screen that lists all recipe suggestions submitted by clients via the
@@ -106,40 +106,25 @@ export default function AdminSuggestions() {
     }
     setSubmitting(true);
     try {
-      // Insert into Supabase meals table
-      await insertRow("meals", {
+      // Use AdminContext's addMeal which inserts into Supabase and updates local state
+      await addMeal({
         name: form.name,
         description: form.description,
         category: form.category,
         price: parseFloat(form.price),
-        stock: parseInt(form.stock) || 0,
-        available: parseInt(form.stock) > 0,
         spicy: false,
-        promo: null,
+        stock: parseInt(form.stock) || 0,
       });
- 
-     await deleteRows("suggestions", `id=eq.${selected.id}`);
-
-// 🔥 REFRESH TOTAL
-await loadSuggestions();
-
-addMeal({
-  name: form.name,
-  description: form.description,
-  category: form.category,
-  price: parseFloat(form.price),
-  spicy: false,
-  stock: parseInt(form.stock) || 0,
-});
-
-setSelected(null);
-alert("Refeição adicionada ao menu com sucesso!");
-
+      // Remove suggestion from Supabase
+      await deleteRows("suggestions", `id=eq.${selected.id}`);
+      await loadSuggestions();
+      setSelected(null);
+      alert("Refeição adicionada ao menu com sucesso!");
     } catch (err: any) {
       console.error(err);
       alert(
         err.message ||
-          "Erro ao adicionar refeição. Verifica a tua ligação ou tenta novamente."
+        "Erro ao adicionar refeição. Verifica a tua ligação ou tenta novamente."
       );
     } finally {
       setSubmitting(false);

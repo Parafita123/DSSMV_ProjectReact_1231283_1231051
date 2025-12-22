@@ -1,11 +1,12 @@
 import React, {
   createContext,
-  useContext,
-  useMemo,
   ReactNode,
+  useContext,
   useEffect,
+  useMemo,
   useReducer,
 } from "react";
+import { deleteRows, fetchTable, insertRow, updateRows } from "../supabase";
 import { useAuth, User } from "./AuthContext";
 import { getAllOrders } from "./CartContext";
 
@@ -79,6 +80,7 @@ export type AdminContextType = {
   }) => void;
   updateMeal: (mealId: string, changes: Partial<Meal>) => void;
   updateStock: (mealId: string, change: number, absolute?: boolean) => void;
+  removeMeal: (mealId: string) => void;
   addEmployee: (emp: { name: string; role: string; email: string }) => void;
   removeEmployee: (id: string) => void;
   addPromotion: (
@@ -96,6 +98,7 @@ export type AdminContextType = {
   }) => void;
   resolveReport: (reportId: string) => void;
   getBilling: (timeframe: number | "all") => number;
+  removeClient?: (email: string) => void;
 };
 
 type AdminState = {
@@ -108,7 +111,10 @@ type AdminState = {
 type AdminAction =
   | { type: "SYNC_CLIENTS_FROM_USERS"; payload: { users: User[] } }
   | { type: "ADD_CLIENT"; payload: { email: string; name: string } }
-  | { type: "SET_CLIENT_FLAG"; payload: { email: string; flag: "banned" | "blocked"; value: boolean } }
+  | {
+      type: "SET_CLIENT_FLAG";
+      payload: { email: string; flag: "banned" | "blocked"; value: boolean };
+    }
   | {
       type: "ADD_MEAL";
       payload: {
@@ -122,7 +128,10 @@ type AdminAction =
       };
     }
   | { type: "UPDATE_MEAL"; payload: { mealId: string; changes: Partial<Meal> } }
-  | { type: "UPDATE_STOCK"; payload: { mealId: string; change: number; absolute?: boolean } }
+  | {
+      type: "UPDATE_STOCK";
+      payload: { mealId: string; change: number; absolute?: boolean };
+    }
   | { type: "ADD_EMPLOYEE"; payload: Employee }
   | { type: "REMOVE_EMPLOYEE"; payload: { id: string } }
   | {
@@ -131,7 +140,11 @@ type AdminAction =
     }
   | { type: "REMOVE_PROMOTION"; payload: { mealId: string } }
   | { type: "ADD_REPORT"; payload: Report }
-  | { type: "RESOLVE_REPORT"; payload: { reportId: string } };
+  | { type: "RESOLVE_REPORT"; payload: { reportId: string } }
+  | { type: "REMOVE_MEAL"; payload: { mealId: string } }
+  | { type: "REMOVE_CLIENT"; payload: { email: string } }
+  | { type: "SET_MEALS_FROM_DB"; payload: Meal[] };
+
 
 const seedMeals: Meal[] = [
   {
@@ -278,6 +291,24 @@ function adminReducer(state: AdminState, action: AdminAction): AdminState {
         reports: state.reports.map((r) => (r.id === action.payload.reportId ? { ...r, resolved: true } : r)),
       };
 
+    case "REMOVE_MEAL":
+      return {
+        ...state,
+        meals: state.meals.filter((m) => m.id !== action.payload.mealId),
+      };
+
+    case "REMOVE_CLIENT":
+      return {
+        ...state,
+        clients: state.clients.filter((c) => c.email !== action.payload.email),
+      };
+
+    case "SET_MEALS_FROM_DB":
+      return {
+        ...state,
+        meals: action.payload,
+      };
+
     default:
       return state;
   }
@@ -290,7 +321,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
   const [state, dispatch] = useReducer(adminReducer, {
     clients: usersToClients(users),
-    meals: seedMeals,
+    meals: seedMeals, // start empty; will be populated from Supabase
     employees: [],
     reports: [],
   });
@@ -300,9 +331,45 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     dispatch({ type: "SYNC_CLIENTS_FROM_USERS", payload: { users } });
   }, [users]);
 
+  // Load meals from Supabase on mount.  This replaces the local seed data.
+  useEffect(() => {
+    const loadMeals = async () => {
+      try {
+        const data: any[] = await fetchTable("meals", "*");
+        // Ensure boolean available flags are computed based on stock
+        const meals: Meal[] = (data as any[]).map((m) => ({
+          ...m,
+          available: typeof m.available === "boolean" ? m.available : m.stock > 0,
+        }));
+        dispatch({ type: "SET_MEALS_FROM_DB" as any, payload: meals } as any);
+      } catch (err) {
+        console.error("Erro ao carregar refeições do Supabase:", err);
+      }
+    };
+    loadMeals();
+    // We don't include dispatch in deps to avoid infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ==== Client management (wrappers que fazem dispatch + (quando preciso) side-effects no Auth) ====
 
-  const addClient = (client: { email: string; name: string }) => {
+  const addClient = async (client: { email: string; name: string }) => {
+    // Insert into Supabase clients table
+    try {
+      await insertRow("clients", {
+        name: client.name,
+        email: client.email,
+        nif: "",
+        address: "",
+        phone: "",
+        password: "123456",
+        role: "client",
+        banned: false,
+        blocked: false,
+      });
+    } catch (err) {
+      console.error("Erro ao adicionar cliente no Supabase:", err);
+    }
     dispatch({ type: "ADD_CLIENT", payload: client });
 
     // Side-effect: garantir que o AuthContext tem o user correspondente
@@ -325,9 +392,12 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
 
   const setClientFlag = (email: string, flag: "banned" | "blocked", value: boolean) => {
     dispatch({ type: "SET_CLIENT_FLAG", payload: { email, flag, value } });
-
     // Side-effect: refletir no AuthContext
     setUsers((prev) => prev.map((u) => (u.email === email ? { ...u, [flag]: value } : u)));
+    // Update in Supabase
+    updateRows("clients", `email=eq.${email}`, { [flag]: value }).catch((err) =>
+      console.error("Erro ao atualizar cliente no Supabase:", err)
+    );
   };
 
   const banClient = (email: string) => setClientFlag(email, "banned", true);
@@ -335,9 +405,24 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
   const blockClient = (email: string) => setClientFlag(email, "blocked", true);
   const unblockClient = (email: string) => setClientFlag(email, "blocked", false);
 
+  // Remove a client completely from the database and local state
+  const removeClient = async (email: string) => {
+    try {
+      await deleteRows("clients", `email=eq.${email}`);
+      dispatch({ type: "REMOVE_CLIENT", payload: { email } });
+      // Also remove from AuthContext users list
+      setUsers((prev) => prev.filter((u) => u.email !== email));
+    } catch (err) {
+      console.error("Erro ao remover cliente no Supabase:", err);
+    }
+  };
+
   // ==== Meal management ====
 
-  const addMeal = (data: {
+  // Add a meal to the menu via Supabase.  This asynchronous function
+  // inserts a new record into the "meals" table and updates the local
+  // context when complete.
+  const addMeal = async (data: {
     name: string;
     description: string;
     price: number;
@@ -345,16 +430,61 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
     spicy?: boolean;
     stock: number;
   }) => {
-    const id = Date.now().toString();
-    dispatch({ type: "ADD_MEAL", payload: { id, ...data } });
+    try {
+      const payload = {
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        price: data.price,
+        stock: data.stock,
+        spicy: data.spicy ?? false,
+        available: data.stock > 0,
+        promo: null,
+      };
+      const res: any = await insertRow("meals", payload);
+      const id = res && res.length > 0 && res[0].id ? res[0].id : Date.now().toString();
+      dispatch({ type: "ADD_MEAL", payload: { id, ...data } });
+    } catch (err) {
+      console.error("Erro ao adicionar refeição no Supabase:", err);
+    }
   };
 
   const updateMeal = (mealId: string, changes: Partial<Meal>) => {
+    // Update in Supabase then local state
+    updateRows("meals", `id=eq.${mealId}`, changes).catch((err) =>
+      console.error("Erro ao atualizar refeição no Supabase:", err)
+    );
     dispatch({ type: "UPDATE_MEAL", payload: { mealId, changes } });
   };
 
   const updateStock = (mealId: string, change: number, absolute?: boolean) => {
+    // Determine the updated stock value and update Supabase accordingly.  We
+    // optimistically update local state then send the PATCH.
+    const current = state.meals.find((m) => m.id === mealId);
+    let newStock = change;
+    let absoluteUpdate = absolute;
+    if (current) {
+      if (absolute) {
+        newStock = change;
+      } else {
+        newStock = current.stock + change;
+      }
+    }
+    // Send patch to Supabase
+    updateRows("meals", `id=eq.${mealId}`, { stock: newStock, available: newStock > 0 }).catch(
+      (err) => console.error("Erro ao atualizar stock no Supabase:", err)
+    );
     dispatch({ type: "UPDATE_STOCK", payload: { mealId, change, absolute } });
+  };
+
+  // Remove a meal from Supabase and from local state
+  const removeMeal = async (mealId: string) => {
+    try {
+      await deleteRows("meals", `id=eq.${mealId}`);
+      dispatch({ type: "REMOVE_MEAL", payload: { mealId } });
+    } catch (err) {
+      console.error("Erro ao remover refeição no Supabase:", err);
+    }
   };
 
   // ==== Employee management ====
@@ -427,6 +557,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       addMeal,
       updateMeal,
       updateStock,
+      removeMeal,
       addEmployee,
       removeEmployee,
       addPromotion,
@@ -434,6 +565,7 @@ export const AdminProvider = ({ children }: { children: ReactNode }) => {
       addReport,
       resolveReport,
       getBilling,
+      removeClient,
     }),
     [state]
   );

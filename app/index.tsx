@@ -61,8 +61,8 @@ export default function HomeScreen() {
     }
   };
 
-  const handleAdminLogin = () => {
-    const result = login(adminEmail.trim(), adminPassword);
+  const handleAdminLogin = async () => {
+    const result = await login(adminEmail.trim(), adminPassword);
     if (!result.success) {
       setAdminError(result.message || "Erro no login.");
       return;
@@ -92,8 +92,8 @@ export default function HomeScreen() {
     setError(null);
   };
 
-  const handleLogin = () => {
-    const result = login(loginEmail.trim(), loginPassword);
+  const handleLogin = async () => {
+    const result = await login(loginEmail.trim(), loginPassword);
     if (!result.success) {
       setError(result.message || "Erro no login.");
       return;
@@ -103,7 +103,7 @@ export default function HomeScreen() {
     router.push("/ClientMenuScreen");
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!name || !email || !nif || !address || !phone || !password) {
       setError("Preenche todos os campos.");
       return;
@@ -112,7 +112,7 @@ export default function HomeScreen() {
     // Provide default values for role, banned and blocked so that the object conforms
     // to the User type defined in AuthContext. When omitted these fields default
     // to undefined which causes a TypeScript error because User requires them.
-    const result = register({
+    const result = await register({
       name: name.trim(),
       email: email.trim(),
       nif: nif.trim(),
@@ -124,7 +124,7 @@ export default function HomeScreen() {
       blocked: false,
     });
 
-    if (!result.success) {
+    if (!result?.success) {
       setError(result.message || "Erro no registo.");
       return;
     }

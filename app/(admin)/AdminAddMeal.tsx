@@ -17,7 +17,7 @@ import { useAdmin } from "../context/AdminContext";
  * the global list used throughout the app. Fields are reset afterwards.
  */
 export default function AdminAddMeal() {
-  const { addMeal } = useAdmin();
+  const { meals, addMeal, updateMeal, removeMeal } = useAdmin();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -25,37 +25,91 @@ export default function AdminAddMeal() {
   const [stock, setStock] = useState("");
   const [spicy, setSpicy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const handleAdd = () => {
-    const priceNum = parseFloat(price);
-    const stockNum = parseInt(stock, 10);
-    if (!name || !description || !category || isNaN(priceNum) || isNaN(stockNum)) {
-      return;
-    }
-    addMeal({
-      name,
-      description,
-      category,
-      price: priceNum,
-      spicy,
-      stock: stockNum,
-    });
+  const resetForm = () => {
     setName("");
     setDescription("");
     setCategory("");
     setPrice("");
     setStock("");
     setSpicy(false);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 2000);
+    setEditingId(null);
+  };
+
+  const handleSave = async () => {
+    const priceNum = parseFloat(price);
+    const stockNum = parseInt(stock, 10);
+    if (!name || !description || !category || isNaN(priceNum) || isNaN(stockNum)) {
+      return;
+    }
+    if (editingId) {
+      // Update existing meal
+      await updateMeal(editingId, {
+        name,
+        description,
+        category,
+        price: priceNum,
+        stock: stockNum,
+        spicy,
+      });
+    } else {
+      // Add new meal
+      await addMeal({
+        name,
+        description,
+        category,
+        price: priceNum,
+        spicy,
+        stock: stockNum,
+      });
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 2000);
+    }
+    resetForm();
+  };
+
+  const handleEdit = (meal: any) => {
+    setEditingId(meal.id);
+    setName(meal.name);
+    setDescription(meal.description);
+    setCategory(meal.category);
+    setPrice(meal.price.toString());
+    setStock(meal.stock.toString());
+    setSpicy(!!meal.spicy);
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Adicionar Refeição ou Produto</Text>
-      <Text style={styles.subtitle}>
-        Preenche os campos abaixo para adicionar uma nova entrada ao menu.
-      </Text>
+      <Text style={styles.title}>Gerir Refeições</Text>
+      <Text style={styles.subtitle}>Lista de refeições existentes e formulário para adicionar/editar.</Text>
+
+      {/* Existing meals list */}
+      {meals.length > 0 && (
+        <View style={{ marginBottom: 20 }}>
+          {meals.map((meal) => (
+            <View key={meal.id} style={styles.mealCard}>
+              <Text style={styles.mealName}>{meal.name}</Text>
+              <Text style={styles.mealCategory}>{meal.category}</Text>
+              <Text style={styles.mealDesc}>{meal.description}</Text>
+              <View style={styles.mealDetailsRow}>
+                <Text style={styles.mealPrice}>{meal.price.toFixed(2)} €</Text>
+                <Text style={styles.mealStock}>Stock: {meal.stock}</Text>
+              </View>
+              <View style={styles.mealActionsRow}>
+                <TouchableOpacity style={styles.editButton} onPress={() => handleEdit(meal)}>
+                  <Text style={styles.editButtonText}>Editar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.deleteButton} onPress={() => removeMeal(meal.id)}>
+                  <Text style={styles.deleteButtonText}>Remover</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* Form fields for add/edit */}
       <TextInput
         style={styles.input}
         placeholder="Nome da refeição"
@@ -84,7 +138,7 @@ export default function AdminAddMeal() {
       />
       <TextInput
         style={styles.input}
-        placeholder="Stock inicial"
+        placeholder="Stock"
         value={stock}
         onChangeText={setStock}
         keyboardType="numeric"
@@ -98,10 +152,18 @@ export default function AdminAddMeal() {
           thumbColor={spicy ? "#FF6F59" : "#FFF"}
         />
       </View>
-      {submitted && <Text style={styles.success}>Refeição adicionada!</Text>}
-      <TouchableOpacity style={styles.addButton} onPress={handleAdd}>
-        <Text style={styles.addButtonText}>Adicionar</Text>
+      {submitted && !editingId && <Text style={styles.success}>Refeição adicionada!</Text>}
+      <TouchableOpacity style={styles.addButton} onPress={handleSave}>
+        <Text style={styles.addButtonText}>{editingId ? "Guardar" : "Adicionar"}</Text>
       </TouchableOpacity>
+      {editingId && (
+        <TouchableOpacity
+          style={[styles.addButton, { backgroundColor: "#BDBDBD", marginTop: 8 }]}
+          onPress={resetForm}
+        >
+          <Text style={styles.addButtonText}>Cancelar</Text>
+        </TouchableOpacity>
+      )}
     </ScrollView>
   );
 }
@@ -161,6 +223,74 @@ const styles = StyleSheet.create({
   addButtonText: {
     color: "#FFF",
     fontSize: 16,
+    fontWeight: "bold",
+  },
+  // Styles for meal listing
+  mealCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  mealName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  mealCategory: {
+    fontSize: 12,
+    color: "#777",
+    marginBottom: 4,
+  },
+  mealDesc: {
+    fontSize: 12,
+    color: "#555",
+    marginBottom: 6,
+  },
+  mealDetailsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  mealPrice: {
+    fontSize: 14,
+    color: "#FF9F1C",
+    fontWeight: "bold",
+  },
+  mealStock: {
+    fontSize: 12,
+    color: "#333",
+  },
+  mealActionsRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  editButton: {
+    backgroundColor: "#4CAF50",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  deleteButton: {
+    backgroundColor: "#FF6F59",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  editButtonText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "bold",
+  },
+  deleteButtonText: {
+    color: "#FFF",
+    fontSize: 12,
     fontWeight: "bold",
   },
 });

@@ -75,7 +75,7 @@ export default function AdminHome() {
         style={styles.button}
         onPress={() => router.push("/AdminAddMeal")}
       >
-        <Text style={styles.buttonText}>Adicionar Refeição/Produto</Text>
+        <Text style={styles.buttonText}>Adicionar/Remover Refeições</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.button}

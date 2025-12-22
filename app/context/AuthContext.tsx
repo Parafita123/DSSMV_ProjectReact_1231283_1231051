@@ -1,4 +1,5 @@
-import React, { createContext, ReactNode, useContext, useMemo, useReducer } from "react";
+import React, { createContext, ReactNode, useContext, useMemo, useReducer, useEffect } from "react";
+import { fetchTable, insertRow, updateRows, deleteRows, supabaseFetch } from "../supabase";
 
 export type User = {
   name: string;
@@ -24,44 +25,9 @@ type AuthAction =
   | { type: "UPDATE_USER"; payload: { email: string; changes: Partial<User> } }
   | { type: "SET_USERS"; payload: User[] };
 
-const MOCK_USERS: User[] = [
-  {
-    name: "Cliente Cheio",
-    email: "cheio@gmail.com",
-    nif: "123456789",
-    address: "Rua dos Galos Cheios, 1",
-    phone: "910000001",
-    password: "123",
-    role: "client",
-    banned: false,
-    blocked: false,
-  },
-  {
-    name: "Cliente Vazio",
-    email: "vazio@gmail.com",
-    nif: "987654321",
-    address: "Rua dos Galos Vazios, 2",
-    phone: "910000002",
-    password: "123",
-    role: "client",
-    banned: false,
-    blocked: false,
-  },
-  {
-    name: "Guta",
-    email: "guta@gmail.com",
-    nif: "000000000",
-    address: "",
-    phone: "",
-    password: "1231051",
-    role: "admin",
-    banned: false,
-    blocked: false,
-  },
-];
-
+// Initial state starts empty.  Users are loaded from Supabase when the provider mounts.
 const initialState: AuthState = {
-  users: MOCK_USERS,
+  users: [],
   currentEmail: null,
 };
 
@@ -99,10 +65,10 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
 type AuthContextType = {
   user: User | null;
   isAuthenticated: boolean;
-  register: (data: User) => { success: boolean; message?: string };
-  login: (email: string, password: string) => { success: boolean; message?: string };
+  register: (data: User) => Promise<{ success: boolean; message?: string }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; message?: string }>;
   logout: () => void;
-  updateUser: (data: Partial<User>) => void;
+  updateUser: (data: Partial<User>) => Promise<void>;
 
   // Mantemos isto porque o teu AdminContext já usa users + setUsers
   users: User[];
@@ -114,15 +80,39 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
+  // Load all users from Supabase on mount.  This will populate the users array
+  // with any records in the `clients` table.  Administrators should also
+  // reside in this table with role = 'admin'.
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const data: any[] = await fetchTable("clients", "*");
+        dispatch({ type: "SET_USERS", payload: data as User[] });
+      } catch (err) {
+        console.error("Erro ao carregar utilizadores do Supabase:", err);
+      }
+    };
+    loadUsers();
+  }, []);
+
   const currentUser = useMemo(
     () => state.users.find((u) => u.email === state.currentEmail) || null,
     [state.users, state.currentEmail]
   );
 
-  const register = (data: User) => {
-    const exists = state.users.some((u) => u.email.toLowerCase() === data.email.toLowerCase());
-    if (exists) return { success: false, message: "Já existe uma conta com este email." };
-
+  /**
+   * Register a new user in Supabase and update the local state.  This method
+   * performs a case-insensitive check against existing users to avoid
+   * duplicate emails.  On success it logs in the newly created user.
+   */
+  const register = async (
+    data: User
+  ): Promise<{ success: boolean; message?: string }> => {
+    const exists = state.users.some(
+      (u) => u.email.toLowerCase() === data.email.trim().toLowerCase()
+    );
+    if (exists)
+      return { success: false, message: "Já existe uma conta com este email." };
     const newUser: User = {
       ...data,
       role: data.role ?? "client",
@@ -130,30 +120,79 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       blocked: data.blocked ?? false,
       email: data.email.trim(),
     };
-
-    dispatch({ type: "REGISTER", payload: newUser });
-    return { success: true };
+    try {
+      await insertRow("clients", {
+        name: newUser.name,
+        email: newUser.email,
+        nif: newUser.nif,
+        address: newUser.address,
+        phone: newUser.phone,
+        password: newUser.password,
+        role: newUser.role,
+        banned: newUser.banned,
+        blocked: newUser.blocked,
+      });
+      dispatch({ type: "REGISTER", payload: newUser });
+      dispatch({ type: "LOGIN_SUCCESS", payload: { email: newUser.email } });
+      return { success: true };
+    } catch (err: any) {
+      console.error(err);
+      return {
+        success: false,
+        message: err.message || "Erro no registo.",
+      };
+    }
   };
 
-  const login = (email: string, password: string) => {
+  /**
+   * Log in by querying Supabase for the given email.  Validates the
+   * password and banned/blocked flags.
+   */
+  const login = async (
+    email: string,
+    password: string
+  ): Promise<{ success: boolean; message?: string }> => {
     const normalizedEmail = email.trim().toLowerCase();
-    const user = state.users.find(
-      (u) => u.email.toLowerCase() === normalizedEmail && u.password === password
-    );
-
-    if (!user) return { success: false, message: "Email ou password inválidos." };
-    if (user.banned) return { success: false, message: "Esta conta está banida." };
-    if (user.blocked) return { success: false, message: "Esta conta está bloqueada." };
-
-    dispatch({ type: "LOGIN_SUCCESS", payload: { email: user.email } });
-    return { success: true };
+    try {
+      const results: any[] = await supabaseFetch("clients", {
+        query: `select=*&email=eq.${encodeURIComponent(normalizedEmail)}`,
+      });
+      const user = results && results.length > 0 ? (results[0] as User) : null;
+      if (!user || user.password !== password) {
+        return { success: false, message: "Email ou password inválidos." };
+      }
+      if (user.banned)
+        return { success: false, message: "Esta conta está banida." };
+      if (user.blocked)
+        return { success: false, message: "Esta conta está bloqueada." };
+      dispatch({ type: "LOGIN_SUCCESS", payload: { email: user.email } });
+      // Add to local users list if missing
+      if (!state.users.some((u) => u.email === user.email)) {
+        dispatch({ type: "SET_USERS", payload: [...state.users, user] });
+      }
+      return { success: true };
+    } catch (err: any) {
+      console.error(err);
+      return { success: false, message: err.message || "Erro no login." };
+    }
   };
 
   const logout = () => dispatch({ type: "LOGOUT" });
 
-  const updateUser = (data: Partial<User>) => {
+  /**
+   * Update the current user's data in Supabase and sync the local state.
+   */
+  const updateUser = async (data: Partial<User>) => {
     if (!currentUser) return;
-    dispatch({ type: "UPDATE_USER", payload: { email: currentUser.email, changes: data } });
+    try {
+      await updateRows("clients", `email=eq.${currentUser.email}`, data);
+      dispatch({
+        type: "UPDATE_USER",
+        payload: { email: currentUser.email, changes: data },
+      });
+    } catch (err) {
+      console.error("Erro ao atualizar utilizador:", err);
+    }
   };
 
   // Compat: o AdminContext usa setUsers(...) — damos uma implementação que despacha SET_USERS
