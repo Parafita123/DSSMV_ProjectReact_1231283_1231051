@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -11,21 +11,30 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useAuth } from "./context/AuthContext";
+
+// ✅ Flux: ler estado da store + disparar actions
+import { useAuthStore } from "../src/react/hooks/useAuthStore";
+import { AuthActions } from "../src/flux/actions/auth.action";
+import type { User } from "../src/flux/types/auth.types";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { isAuthenticated, user, login, register, users } = useAuth();
 
+  // ✅ Store snapshot
+  const { users, currentUser, loading, error } = useAuthStore();
+  const isAuthenticated = !!currentUser;
+  const user = currentUser;
+
+  // UI state
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [error, setError] = useState<string | null>(null);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   // admin login modal state
   const [adminModalVisible, setAdminModalVisible] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
-  const [adminError, setAdminError] = useState<string | null>(null);
+  const [adminLocalError, setAdminLocalError] = useState<string | null>(null);
 
   // campos login
   const [loginEmail, setLoginEmail] = useState("");
@@ -39,46 +48,19 @@ export default function HomeScreen() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
 
-  const openClientArea = () => {
-    if (isAuthenticated) {
-      router.push("/ClientMenuScreen");
-    } else {
-      setAuthModalVisible(true);
-      setMode("login");
-      setError(null);
-    }
-  };
+  // Sync do erro do Store para o erro local (para mostrar dentro do modal certo)
+  useEffect(() => {
+    if (!error) return;
 
-  const openAdminArea = () => {
-    // If already authenticated as admin, go directly to admin home
-    if (isAuthenticated && user && user.role === "admin") {
-      router.push("/AdminHome");
-    } else {
-      setAdminEmail("");
-      setAdminPassword("");
-      setAdminError(null);
-      setAdminModalVisible(true);
-    }
-  };
-
-  const handleAdminLogin = async () => {
-    const result = await login(adminEmail.trim(), adminPassword);
-    if (!result.success) {
-      setAdminError(result.message || "Erro no login.");
+    // Se o admin modal estiver aberto, mostra no erro do admin
+    if (adminModalVisible) {
+      setAdminLocalError(error);
       return;
     }
-    // find the user in the auth users list
-    const found = users.find((u) => u.email === adminEmail.trim());
-    if (!found || found.role !== "admin") {
-      setAdminError("Apenas administradores podem entrar nesta área.");
-      return;
-    }
-    setAdminModalVisible(false);
-    setAdminEmail("");
-    setAdminPassword("");
-    setAdminError(null);
-    router.push("/AdminHome");
-  };
+
+    // Caso contrário, mostra no modal cliente
+    setLocalError(error);
+  }, [error, adminModalVisible]);
 
   const resetForms = () => {
     setLoginEmail("");
@@ -89,30 +71,54 @@ export default function HomeScreen() {
     setAddress("");
     setPhone("");
     setPassword("");
-    setError(null);
+    setLocalError(null);
+    setAdminLocalError(null);
   };
 
-  const handleLogin = async () => {
-    const result = await login(loginEmail.trim(), loginPassword);
-    if (!result.success) {
-      setError(result.message || "Erro no login.");
+  const openClientArea = () => {
+    if (isAuthenticated) {
+      // Já está autenticado: vai para o menu de cliente
+      router.push("/ClientMenuScreen");
+    } else {
+      setAuthModalVisible(true);
+      setMode("login");
+      setLocalError(null);
+      AuthActions.clearError();
+    }
+  };
+
+  const openAdminArea = () => {
+    // Se já está autenticado como admin, entra direto
+    if (isAuthenticated && user?.role === "admin") {
+      router.push("/AdminHome");
       return;
     }
-    setAuthModalVisible(false);
-    resetForms();
-    router.push("/ClientMenuScreen");
+
+    setAdminEmail("");
+    setAdminPassword("");
+    setAdminLocalError(null);
+    AuthActions.clearError();
+    setAdminModalVisible(true);
   };
 
-  const handleRegister = async () => {
+  // ✅ Login cliente via Flux
+  const handleLogin = () => {
+    setLocalError(null);
+    AuthActions.clearError();
+    AuthActions.login(loginEmail.trim(), loginPassword);
+  };
+
+  // ✅ Registo cliente via Flux
+  const handleRegister = () => {
+    setLocalError(null);
+    AuthActions.clearError();
+
     if (!name || !email || !nif || !address || !phone || !password) {
-      setError("Preenche todos os campos.");
+      setLocalError("Preenche todos os campos.");
       return;
     }
 
-    // Provide default values for role, banned and blocked so that the object conforms
-    // to the User type defined in AuthContext. When omitted these fields default
-    // to undefined which causes a TypeScript error because User requires them.
-    const result = await register({
+    const payload: User = {
       name: name.trim(),
       email: email.trim(),
       nif: nif.trim(),
@@ -122,17 +128,52 @@ export default function HomeScreen() {
       role: "client",
       banned: false,
       blocked: false,
-    });
+    };
 
-    if (!result?.success) {
-      setError(result.message || "Erro no registo.");
+    AuthActions.register(payload);
+  };
+
+  // ✅ Login admin via Flux (apenas usa AuthActions.login e depois valida role)
+  const handleAdminLogin = () => {
+    setAdminLocalError(null);
+    AuthActions.clearError();
+
+    // Dispara login; a navegação é tratada num effect quando o store atualizar
+    AuthActions.login(adminEmail.trim(), adminPassword);
+  };
+
+  // ✅ Quando autenticar como CLIENTE, fechar modal do cliente e navegar
+  useEffect(() => {
+    if (!authModalVisible) return;
+    if (!isAuthenticated || !user) return;
+
+    // Só fecha se for cliente (não queremos fechar modal cliente se alguém tentou entrar como admin)
+    if (user.role !== "client") {
+      setLocalError("Apenas clientes podem entrar na Área do Cliente.");
       return;
     }
 
     setAuthModalVisible(false);
     resetForms();
     router.push("/ClientMenuScreen");
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authModalVisible, isAuthenticated, user?.email, user?.role]);
+
+  // ✅ Quando autenticar como ADMIN, fechar modal de admin e navegar
+  useEffect(() => {
+    if (!adminModalVisible) return;
+    if (!isAuthenticated || !user) return;
+
+    if (user.role !== "admin") {
+      setAdminLocalError("Apenas administradores podem entrar nesta área.");
+      return;
+    }
+
+    setAdminModalVisible(false);
+    resetForms();
+    router.push("/AdminHome");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminModalVisible, isAuthenticated, user?.email, user?.role]);
 
   return (
     <>
@@ -145,6 +186,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={[styles.button, styles.clientButton]}
           onPress={openClientArea}
+          disabled={loading}
         >
           <Text style={styles.buttonText}>
             Área do Cliente {isAuthenticated && user ? `(${user.name})` : ""}
@@ -154,15 +196,15 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={[styles.button, styles.adminButton]}
           onPress={openAdminArea}
+          disabled={loading}
         >
           <Text style={styles.buttonText}>Área de Admin</Text>
         </TouchableOpacity>
+
+        {loading && <Text style={styles.loadingText}>A carregar...</Text>}
       </View>
 
-      {/* MODAL DE LOGIN ADMIN
-         A known issue in expo-router prevents Modals from rendering on top of a Stack.
-         Wrapping the Modal in a full-screen absolute-positioned View resolves the
-         problem where only a black overlay is shown【198878935596254†L240-L400】. */}
+      {/* MODAL DE LOGIN ADMIN */}
       {adminModalVisible && (
         <View style={styles.modalWrapper}>
           <Modal
@@ -181,11 +223,16 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     onPress={() => setAdminModalVisible(false)}
                     style={styles.closeButton}
+                    disabled={loading}
                   >
                     <Text style={styles.closeButtonText}>X</Text>
                   </TouchableOpacity>
                 </View>
-                {adminError && <Text style={styles.errorText}>{adminError}</Text>}
+
+                {adminLocalError && (
+                  <Text style={styles.errorText}>{adminLocalError}</Text>
+                )}
+
                 <TextInput
                   style={styles.input}
                   placeholder="Email de admin"
@@ -201,11 +248,15 @@ export default function HomeScreen() {
                   value={adminPassword}
                   onChangeText={setAdminPassword}
                 />
+
                 <TouchableOpacity
                   style={styles.submitButton}
                   onPress={handleAdminLogin}
+                  disabled={loading}
                 >
-                  <Text style={styles.submitButtonText}>Entrar</Text>
+                  <Text style={styles.submitButtonText}>
+                    {loading ? "A entrar..." : "Entrar"}
+                  </Text>
                 </TouchableOpacity>
               </View>
             </KeyboardAvoidingView>
@@ -213,7 +264,7 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* MODAL DE LOGIN / REGISTO */}
+      {/* MODAL DE LOGIN / REGISTO (CLIENTE) */}
       {authModalVisible && (
         <View style={styles.modalWrapper}>
           <Modal
@@ -234,6 +285,7 @@ export default function HomeScreen() {
                   <TouchableOpacity
                     onPress={() => setAuthModalVisible(false)}
                     style={styles.closeButton}
+                    disabled={loading}
                   >
                     <Text style={styles.closeButtonText}>X</Text>
                   </TouchableOpacity>
@@ -247,8 +299,10 @@ export default function HomeScreen() {
                     ]}
                     onPress={() => {
                       setMode("login");
-                      setError(null);
+                      setLocalError(null);
+                      AuthActions.clearError();
                     }}
+                    disabled={loading}
                   >
                     <Text
                       style={[
@@ -259,6 +313,7 @@ export default function HomeScreen() {
                       Já tenho conta
                     </Text>
                   </TouchableOpacity>
+
                   <TouchableOpacity
                     style={[
                       styles.modeButton,
@@ -266,8 +321,10 @@ export default function HomeScreen() {
                     ]}
                     onPress={() => {
                       setMode("register");
-                      setError(null);
+                      setLocalError(null);
+                      AuthActions.clearError();
                     }}
+                    disabled={loading}
                   >
                     <Text
                       style={[
@@ -280,7 +337,7 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                 </View>
 
-                {error && <Text style={styles.errorText}>{error}</Text>}
+                {localError && <Text style={styles.errorText}>{localError}</Text>}
 
                 <ScrollView
                   contentContainerStyle={{ paddingBottom: 10 }}
@@ -307,8 +364,11 @@ export default function HomeScreen() {
                       <TouchableOpacity
                         style={styles.submitButton}
                         onPress={handleLogin}
+                        disabled={loading}
                       >
-                        <Text style={styles.submitButtonText}>Entrar</Text>
+                        <Text style={styles.submitButtonText}>
+                          {loading ? "A entrar..." : "Entrar"}
+                        </Text>
                       </TouchableOpacity>
                     </>
                   ) : (
@@ -358,8 +418,11 @@ export default function HomeScreen() {
                       <TouchableOpacity
                         style={styles.submitButton}
                         onPress={handleRegister}
+                        disabled={loading}
                       >
-                        <Text style={styles.submitButtonText}>Criar Conta</Text>
+                        <Text style={styles.submitButtonText}>
+                          {loading ? "A criar..." : "Criar Conta"}
+                        </Text>
                       </TouchableOpacity>
                     </>
                   )}
@@ -412,15 +475,17 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: "#666",
+  },
   modalOuter: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
     paddingHorizontal: 16,
   },
-  // Wrapper used to work around an expo-router bug where Modal only shows a black
-  // overlay when used inside a Stack. The wrapper fills the screen and gives
-  // the Modal a positioned parent【198878935596254†L240-L400】.
   modalWrapper: {
     position: "absolute",
     width: "100%",

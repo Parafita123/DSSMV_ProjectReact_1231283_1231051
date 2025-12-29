@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -7,17 +7,41 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useCart, Meal } from "../../context/CartContext";
+
+//Flux: estado + actions
+import { useCartStore } from "../../../src/react/hooks/useCartStore";
+import { removeFromCart, clearCart, placeOrder } from "../../../src/flux/actions/cart.action";
+import type { Meal } from "../../../src/flux/types/cart.types";
+import type { Order } from "../../../src/flux/types/cart.types";
+import { useAuthStore } from "../../../src/react/hooks/useAuthStore";
 
 export default function Carrinho() {
+  const { currentUser } = useAuthStore();
   const router = useRouter();
-  const { cartItems, removeFromCart, clearCart, placeOrder } = useCart();
 
-  const total = cartItems.reduce((sum, m) => sum + m.price, 0);
+  // ✅ Store snapshot
+  const { cartItems } = useCartStore();
+
+  const total = useMemo(
+    () => cartItems.reduce((sum, m) => sum + m.price, 0),
+    [cartItems]
+  );
 
   const handleFinalizar = () => {
     if (cartItems.length === 0) return;
-    placeOrder();
+
+    
+  const order: Order = {
+    id: Date.now().toString(),
+    items: cartItems,
+    total,
+    createdAt: new Date().toISOString(),
+    clientEmail: currentUser?.email ?? "__guest__",
+  };
+
+    // Intent -> dispatcher -> store (store mantém side-effects como tinhas)
+    placeOrder(order);
+
     router.push("/Conta");
   };
 
@@ -27,6 +51,7 @@ export default function Carrinho() {
         <Text style={styles.itemName}>{item.name}</Text>
         <Text style={styles.itemPrice}>{item.price.toFixed(2)} €</Text>
       </View>
+
       <TouchableOpacity
         style={styles.removeButton}
         onPress={() => removeFromCart(item.id)}
@@ -42,14 +67,15 @@ export default function Carrinho() {
 
       {cartItems.length === 0 ? (
         <Text style={styles.emptyText}>
-          Ainda não tens refeições no carrinho. Adiciona a partir das
-          Refeições Disponíveis.
+          Ainda não tens refeições no carrinho. Adiciona a partir das Refeições
+          Disponíveis.
         </Text>
       ) : (
         <>
           <FlatList
             data={cartItems}
-            keyExtractor={(item) => item.id + Math.random().toString()}
+            // ✅ key estável (evita re-renders estranhos)
+            keyExtractor={(item, idx) => `${item.id}-${idx}`}
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
           />
@@ -60,7 +86,10 @@ export default function Carrinho() {
           </View>
 
           <View style={styles.actionsRow}>
-            <TouchableOpacity style={styles.clearButton} onPress={clearCart}>
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={() => clearCart()}
+            >
               <Text style={styles.clearButtonText}>Limpar Carrinho</Text>
             </TouchableOpacity>
 
@@ -145,8 +174,6 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    // Remove gap property as it is not supported in React Native versions prior to 0.71.
-    // gap: 10,
   },
   clearButton: {
     flex: 1,
@@ -154,6 +181,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
+    marginRight: 8,
   },
   clearButtonText: {
     color: "#fff",

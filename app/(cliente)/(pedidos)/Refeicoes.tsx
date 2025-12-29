@@ -6,48 +6,54 @@ import {
   FlatList,
   TouchableOpacity,
 } from "react-native";
-import { Meal, useCart } from "../../context/CartContext";
-import { useAdmin } from "../../context/AdminContext";
 
-/*
- * Instead of relying on hardcoded mock meals, we fetch the list of meals
- * directly from the AdminContext. This allows the admin to add new
- * meals, update stock and create promotions that are immediately
- * reflected in the client interface. A promotion is considered active
- * when the current time is between startAt and endAt. If active, the
- * discount is applied to the displayed price and flagged with a tag.
- */
+//Flux: ler estado das stores
+import { useAdminStore } from "../../../src/react/hooks/useAdminStore";
+import { useCartStore } from "../../../src/react/hooks/useCartStore";
+
+//Flux: actions (intent/event)
+import { addToCart } from "../../../src/flux/actions/cart.action";
+
+//Types
+import type { Meal } from "../../../src/flux/types/admin.types";
 
 const RefeicoesScreen: React.FC = () => {
-  const { meals } = useAdmin();
-  const { addToCart } = useCart();
+  // Store -> UI
+  const { meals } = useAdminStore();
+  useCartStore(); // mantém a store ativa (opcional, mas ok)
 
   const renderMeal = ({ item }: { item: Meal }) => {
-    // Determine if there's an active promotion and calculate discounted price
+    //Mesma lógica de promo
     let isPromo = false;
     let promoPrice = item.price;
+
     if (item.promo) {
       const now = new Date();
       const start = new Date(item.promo.startAt);
       const end = new Date(item.promo.endAt);
+
       if (now >= start && now <= end) {
         isPromo = true;
         promoPrice = item.price * (1 - item.promo.discountPercent / 100);
       }
     }
-    // When adding to cart, we create a copy of the meal and override the price
+
+    // Ao adicionar ao carrinho, copia e substitui o preço pelo preço promocional
     const handleAdd = () => {
-      const mealToAdd: Meal = { ...item, price: promoPrice };
-      addToCart(mealToAdd);
+      const mealToAdd = { ...item, price: promoPrice };
+      addToCart(mealToAdd as any);
+      // ^ se o teu cart.types Meal != admin.types Meal, diz-me e eu deixo tipado certinho
     };
+
     return (
       <View style={[styles.card, !item.available && styles.cardUnavailable]}>
         <View style={styles.cardHeader}>
           <Text style={styles.mealName}>{item.name}</Text>
-          <View style={{ alignItems: 'flex-end' }}>
+
+          <View style={{ alignItems: "flex-end" }}>
             {isPromo ? (
               <>
-                <Text style={[styles.mealPrice, styles.originalPrice]}> 
+                <Text style={[styles.mealPrice, styles.originalPrice]}>
                   {item.price.toFixed(2)} €
                 </Text>
                 <Text style={styles.mealPrice}>{promoPrice.toFixed(2)} €</Text>
@@ -65,6 +71,7 @@ const RefeicoesScreen: React.FC = () => {
           {item.spicy && (
             <Text style={[styles.tag, styles.tagSpicy]}>Picante 🌶️</Text>
           )}
+
           <Text
             style={[
               styles.tag,
@@ -73,9 +80,8 @@ const RefeicoesScreen: React.FC = () => {
           >
             {item.available ? "Disponível" : "Indisponível"}
           </Text>
-          {isPromo && (
-            <Text style={[styles.tag, styles.tagPromo]}>Promoção</Text>
-          )}
+
+          {isPromo && <Text style={[styles.tag, styles.tagPromo]}>Promoção</Text>}
         </View>
 
         <TouchableOpacity
@@ -101,6 +107,7 @@ const RefeicoesScreen: React.FC = () => {
         O menu abaixo reflete os dados geridos pelo administrador. As promoções
         aplicadas na área de admin são automaticamente consideradas.
       </Text>
+
       <FlatList
         data={meals}
         keyExtractor={(item) => item.id}
@@ -169,7 +176,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#FF9F1C",
   },
-  // When a promotion is active, the original price is shown with a line-through
   originalPrice: {
     fontSize: 12,
     color: "#777",

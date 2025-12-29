@@ -1,17 +1,23 @@
+// app/_layout.tsx
 import { Stack } from "expo-router";
-import React from "react";
-import { AuthProvider } from "./context/AuthContext";
-import { CartProvider } from "./context/CartContext";
-import { AdminProvider } from "./context/AdminContext";
+import React, { useEffect } from "react";
+import { StoresProvider } from "../src/react/context/StoresContext";
+
+import { AuthActions } from "../src/flux/actions/auth.action";
+import { AdminActions } from "../src/flux/actions/admin.action";
 
 export default function RootLayout() {
+  useEffect(() => {
+    //Carrega users (login)
+    AuthActions.init();
+
+    //Carrega refeições para o ecrã "Refeições"
+    AdminActions.initMeals();
+  }, []);
+
   return (
-    <AuthProvider>
-  <AdminProvider>
-    <CartProvider>
+    <StoresProvider>
       <Stack />
-    </CartProvider>
-  </AdminProvider>
-</AuthProvider>
+    </StoresProvider>
   );
 }

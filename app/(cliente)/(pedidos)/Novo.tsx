@@ -1,11 +1,15 @@
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
-import { useCart } from "../../context/CartContext";
+
+//Flux: ler estado da store (cart)
+import { useCartStore } from "../../../src/react/hooks/useCartStore";
 
 export default function NovoPedido() {
   const router = useRouter();
-  const { totalItems } = useCart();
+
+  //Store -> UI
+  const { totalItems } = useCartStore();
 
   return (
     <View style={styles.container}>

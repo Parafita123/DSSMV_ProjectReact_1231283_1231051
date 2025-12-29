@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// app/(cliente)/Conta.tsx
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -9,46 +10,66 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useCart, Order } from "../context/CartContext";
-import { useAdmin } from "../context/AdminContext";
-import { useAuth } from "../context/AuthContext";
+
+//Flux hooks
+import { useAuthStore } from "../../src/react/hooks/useAuthStore";
+import { useCartStore } from "../../src/react/hooks/useCartStore";
+
+//Flux actions
+import { updateUser, logout } from "../../src/flux/actions/auth.action";
+import { addReport } from "../../src/flux/actions/admin.action";
+
+// ✅ Types
+import type { Order } from "../../src/flux/types/cart.types";
 
 export default function Conta() {
   const router = useRouter();
-  const { orders } = useCart();
-  const { user, updateUser, logout } = useAuth();
-  const { addReport } = useAdmin();
+
+  const { currentUser } = useAuthStore();
+  const { orders } = useCartStore();
+
+  const user = currentUser;
 
   const [isPasswordModalVisible, setPasswordModalVisible] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [canEdit, setCanEdit] = useState(false);
 
-  // State for reporting a specific order
+  // Report modal state
   const [isReportModalVisible, setReportModalVisible] = useState(false);
   const [reportOrderId, setReportOrderId] = useState<string | null>(null);
-  const REPORT_TYPES = [
-    "Pedido mal feito",
-    "Item em falta",
-    "Atraso na entrega",
-    "Outro",
-  ];
-  const [selectedReportType, setSelectedReportType] = useState<string>(REPORT_TYPES[0]);
+  const REPORT_TYPES = useMemo(
+    () => ["Pedido mal feito", "Item em falta", "Atraso na entrega", "Outro"],
+    []
+  );
+  const [selectedReportType, setSelectedReportType] = useState<string>(
+    REPORT_TYPES[0]
+  );
   const [reportDesc, setReportDesc] = useState("");
 
+  // Editable fields
   const [editName, setEditName] = useState(user?.name || "");
   const [editEmail, setEditEmail] = useState(user?.email || "");
   const [editNif, setEditNif] = useState(user?.nif || "");
   const [editAddress, setEditAddress] = useState(user?.address || "");
   const [editPhone, setEditPhone] = useState(user?.phone || "");
 
+  // Se user mudar (login/logout), sincroniza os campos
+  React.useEffect(() => {
+    setEditName(user?.name || "");
+    setEditEmail(user?.email || "");
+    setEditNif(user?.nif || "");
+    setEditAddress(user?.address || "");
+    setEditPhone(user?.phone || "");
+  }, [user?.email]);
+
   if (!user) {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>A Minha Conta</Text>
         <Text style={styles.info}>
-          Não tens sessão iniciada. Volta ao ecrã inicial e faz login ou
-          regista uma conta.
+          Não tens sessão iniciada. Volta ao ecrã inicial e faz login ou regista
+          uma conta.
         </Text>
       </View>
     );
@@ -70,6 +91,7 @@ export default function Conta() {
   };
 
   const handleSaveChanges = async () => {
+    // ✅ Flux: updateUser só recebe changes (1 argumento)
     await updateUser({
       name: editName,
       email: editEmail,
@@ -77,12 +99,13 @@ export default function Conta() {
       address: editAddress,
       phone: editPhone,
     });
+
     setCanEdit(false);
   };
 
   const handleLogout = () => {
     logout();
-    router.replace("/"); // volta para o ecrã inicial
+    router.replace("/");
   };
 
   const renderOrder = ({ item }: { item: Order }) => {
@@ -95,12 +118,14 @@ export default function Conta() {
         <Text style={styles.orderDate}>
           {date.toLocaleDateString()} {date.toLocaleTimeString()}
         </Text>
+
         <Text style={styles.orderItemsTitle}>Refeições:</Text>
         {item.items.map((meal, index) => (
-          <Text key={index} style={styles.orderItem}>
+          <Text key={`${item.id}-${index}`} style={styles.orderItem}>
             • {meal.name} ({meal.price.toFixed(2)} €)
           </Text>
         ))}
+
         <TouchableOpacity
           style={styles.reportButton}
           onPress={() => {
@@ -136,10 +161,7 @@ export default function Conta() {
             <Text style={styles.dataItem}>Telemóvel: {user.phone}</Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.editButton}
-            onPress={handleAskPassword}
-          >
+          <TouchableOpacity style={styles.editButton} onPress={handleAskPassword}>
             <Text style={styles.editButtonText}>Editar dados</Text>
           </TouchableOpacity>
         </>
@@ -186,10 +208,7 @@ export default function Conta() {
             >
               <Text style={styles.saveButtonText}>Cancelar</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.saveButton}
-              onPress={handleSaveChanges}
-            >
+            <TouchableOpacity style={styles.saveButton} onPress={handleSaveChanges}>
               <Text style={styles.saveButtonText}>Guardar</Text>
             </TouchableOpacity>
           </View>
@@ -209,11 +228,6 @@ export default function Conta() {
         />
       )}
 
-      <Text style={styles.footer}>
-        No futuro, estes dados podem ser guardados numa base de dados via API,
-        permitindo também calcular faturamento na área de admin.
-      </Text>
-
       {/* Modal para reportar um pedido */}
       <Modal
         visible={isReportModalVisible}
@@ -227,6 +241,7 @@ export default function Conta() {
             <Text style={styles.modalInfo}>
               Seleciona o tipo de problema e descreve o que aconteceu.
             </Text>
+
             {REPORT_TYPES.map((type) => (
               <TouchableOpacity
                 key={type}
@@ -239,11 +254,14 @@ export default function Conta() {
                     selectedReportType === type && styles.radioOuterActive,
                   ]}
                 >
-                  {selectedReportType === type && <View style={styles.radioInner} />}
+                  {selectedReportType === type && (
+                    <View style={styles.radioInner} />
+                  )}
                 </View>
                 <Text style={styles.reportTypeLabel}>{type}</Text>
               </TouchableOpacity>
             ))}
+
             <TextInput
               style={[styles.input, { height: 80 }]}
               placeholder="Descreve o problema (máx 4000 carateres)"
@@ -252,6 +270,7 @@ export default function Conta() {
               multiline
               maxLength={4000}
             />
+
             <View style={styles.editButtonsRow}>
               <TouchableOpacity
                 style={[styles.saveButton, { backgroundColor: "#BDBDBD" }]}
@@ -262,7 +281,7 @@ export default function Conta() {
               <TouchableOpacity
                 style={styles.saveButton}
                 onPress={() => {
-                  if (!reportOrderId || !user) return;
+                  if (!reportOrderId) return;
                   addReport({
                     clientEmail: user.email,
                     orderId: reportOrderId,
@@ -292,9 +311,9 @@ export default function Conta() {
             <Text style={styles.modalInfo}>
               Introduz a password da conta para poderes editar os dados.
             </Text>
-            {passwordError && (
-              <Text style={styles.errorText}>{passwordError}</Text>
-            )}
+
+            {passwordError && <Text style={styles.errorText}>{passwordError}</Text>}
+
             <TextInput
               style={styles.input}
               placeholder="Password"
@@ -302,6 +321,7 @@ export default function Conta() {
               value={passwordInput}
               onChangeText={setPasswordInput}
             />
+
             <View style={styles.editButtonsRow}>
               <TouchableOpacity
                 style={[styles.saveButton, { backgroundColor: "#BDBDBD" }]}
@@ -309,10 +329,7 @@ export default function Conta() {
               >
                 <Text style={styles.saveButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.saveButton}
-                onPress={handleConfirmPassword}
-              >
+              <TouchableOpacity style={styles.saveButton} onPress={handleConfirmPassword}>
                 <Text style={styles.saveButtonText}>Confirmar</Text>
               </TouchableOpacity>
             </View>
@@ -391,9 +408,6 @@ const styles = StyleSheet.create({
   editButtonsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    // Remove gap property as it is not supported in React Native versions prior to 0.71.
-    // Spacing between children can be handled via margin on the child components if needed.
-    // gap: 8,
     marginBottom: 20,
   },
   saveButton: {
@@ -460,12 +474,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
   },
-  footer: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "#666",
+  modalOuter: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    paddingHorizontal: 20,
   },
-  // For report modal radio buttons
+  modalContent: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FF6F59",
+    marginBottom: 6,
+  },
+  modalInfo: {
+    fontSize: 13,
+    color: "#555",
+    marginBottom: 8,
+  },
+  errorText: {
+    color: "#FF3B30",
+    marginBottom: 6,
+    fontSize: 13,
+  },
   reportTypeRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -493,32 +528,5 @@ const styles = StyleSheet.create({
   reportTypeLabel: {
     fontSize: 14,
     color: "#333",
-  },
-  modalOuter: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-  },
-  modalContent: {
-    backgroundColor: "#FFF",
-    borderRadius: 16,
-    padding: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#FF6F59",
-    marginBottom: 6,
-  },
-  modalInfo: {
-    fontSize: 13,
-    color: "#555",
-    marginBottom: 8,
-  },
-  errorText: {
-    color: "#FF3B30",
-    marginBottom: 6,
-    fontSize: 13,
   },
 });

@@ -7,11 +7,15 @@ import {
   ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useCart } from "../context/CartContext";
+
+//Flux: ler estado da store (sem context antigo)
+import { useCartStore } from "../../src/react/hooks/useCartStore";
 
 export default function ClientMenuScreen() {
   const router = useRouter();
-  const { totalItems } = useCart();
+
+  //Store snapshot
+  const { totalItems } = useCartStore();
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -71,16 +75,13 @@ export default function ClientMenuScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* New feature: AI‑powered recipe suggestion.  Clients can
-        select ingredients and generate a personalised recipe using the
-        RapidAPI service, then submit it as a suggestion to the admin. */}
         <TouchableOpacity
           style={[styles.button, styles.buttonBlue]}
-          onPress={() => router.push("/SugerirReceita")}
+          onPress={() => router.push("../SugerirReceita")}
         >
           <Text style={styles.buttonTitle}>Sugerir Receita</Text>
           <Text style={styles.buttonDescription}>
-            Gerar uma receita personalizada com IA e sugeri‑la ao menu.
+            Gerar uma receita personalizada com IA e sugeri-la ao menu.
           </Text>
         </TouchableOpacity>
       </View>
@@ -175,8 +176,6 @@ const styles = StyleSheet.create({
   buttonRed: {
     backgroundColor: "#FF6F59",
   },
-
-  // Blue button for recipe suggestions
   buttonBlue: {
     backgroundColor: "#2EC4B6",
   },
