@@ -1,27 +1,22 @@
 // src/react/hooks/useAuthStore.ts
 import { useEffect, useMemo, useState } from "react";
 import { useStores } from "../context/StoresContext";
+import type { AuthState } from "../../flux/stores/AuthStore";
 
 export function useAuthStore() {
   const { authStore } = useStores();
 
-  // snapshot inicial
-  const [snap, setSnap] = useState(() => authStore.getState());
+  const [snap, setSnap] = useState<AuthState>(authStore.getState());
 
   useEffect(() => {
-    // subscreve mudanças do store
-    const unsub = authStore.subscribe(() => {
-      setSnap(authStore.getState());
-    });
+    const onChange = () => setSnap(authStore.getState());
 
-    // cleanup
-    return unsub;
+    // ✅ BaseStore agora devolve unsubscribe function (não boolean)
+    const unsubscribe = authStore.addChangeListener(onChange);
+    return unsubscribe;
   }, [authStore]);
 
-  const currentUser = useMemo(() => authStore.getCurrentUser(), [
-    snap.currentEmail,
-    snap.users,
-  ]);
+  const currentUser = useMemo(() => authStore.getCurrentUser(), [snap.currentEmail, snap.users]);
 
   return {
     ...snap,

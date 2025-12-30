@@ -1,3 +1,4 @@
+// app/(admin)/AdminStock.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -7,7 +8,12 @@ import {
   TextInput,
   ScrollView,
 } from "react-native";
-import { useAdmin } from "../context/AdminContext";
+
+// ✅ Flux: ler meals da store
+import { useAdminStore } from "../../src/react/hooks/useAdminStore";
+
+// ✅ Flux: actions
+import { AdminActions } from "../../src/flux/actions/admin.action";
 
 /**
  * Screen for administrators to manage stock of meals/products. Each meal is
@@ -15,7 +21,8 @@ import { useAdmin } from "../context/AdminContext";
  * the stock. There is also an input to set the stock to an absolute value.
  */
 export default function AdminStock() {
-  const { meals, updateStock } = useAdmin();
+  const { meals } = useAdminStore();
+
   // local state to hold absolute stock edits keyed by meal id
   const [editValues, setEditValues] = useState<Record<string, string>>({});
 
@@ -26,7 +33,8 @@ export default function AdminStock() {
   const handleSetStock = (mealId: string) => {
     const value = parseInt(editValues[mealId], 10);
     if (!isNaN(value)) {
-      updateStock(mealId, value, true);
+      // ✅ igual ao antigo: set absoluto (3º argumento true)
+      AdminActions.updateStock(mealId, value, true);
       setEditValues((prev) => ({ ...prev, [mealId]: "" }));
     }
   };
@@ -38,28 +46,34 @@ export default function AdminStock() {
         Ajusta as quantidades disponíveis de cada refeição ou produto. Quando o
         stock chegar a zero, a refeição fica indisponível no menu do cliente.
       </Text>
+
       {meals.map((meal) => (
         <View key={meal.id} style={styles.card}>
           <View style={styles.rowBetween}>
             <Text style={styles.mealName}>{meal.name}</Text>
             <Text style={styles.mealPrice}>{meal.price.toFixed(2)} €</Text>
           </View>
+
           <Text style={styles.mealCategory}>{meal.category}</Text>
+
           <View style={styles.stockRow}>
             <TouchableOpacity
               style={styles.adjustButton}
-              onPress={() => updateStock(meal.id, -1)}
-              disabled={meal.stock <= 0}
+              onPress={() => AdminActions.updateStock(meal.id, -1)}
+              disabled={(meal.stock ?? 0) <= 0}
             >
               <Text style={styles.adjustButtonText}>-</Text>
             </TouchableOpacity>
+
             <Text style={styles.stockValue}>{meal.stock}</Text>
+
             <TouchableOpacity
               style={styles.adjustButton}
-              onPress={() => updateStock(meal.id, 1)}
+              onPress={() => AdminActions.updateStock(meal.id, 1)}
             >
               <Text style={styles.adjustButtonText}>+</Text>
             </TouchableOpacity>
+
             <TextInput
               style={styles.stockInput}
               keyboardType="numeric"
@@ -67,6 +81,7 @@ export default function AdminStock() {
               value={editValues[meal.id] ?? ""}
               onChangeText={(text) => handleChange(meal.id, text)}
             />
+
             <TouchableOpacity
               style={styles.setButton}
               onPress={() => handleSetStock(meal.id)}
@@ -135,8 +150,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 6,
     flexWrap: "wrap",
-    // Remove gap property; not supported on older React Native versions.
-    // gap: 6,
   },
   adjustButton: {
     backgroundColor: "#FF9F1C",

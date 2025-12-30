@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// app/(admin)/AdminAddMeal.tsx
+import React, { useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -7,17 +8,22 @@ import {
   TouchableOpacity,
   Switch,
   ScrollView,
+  Alert,
+  Platform,
 } from "react-native";
-import { useAdmin } from "../context/AdminContext";
+
+// ✅ Flux
+import { useAdminStore } from "../../src/react/hooks/useAdminStore";
+import { AdminActions } from "../../src/flux/actions/admin.action";
+import type { Meal } from "../../src/flux/types/cart.types";
 
 /**
- * Screen that allows administrators to add new meals or products. The form
- * collects basic information like name, description, category, price, stock
- * and whether the dish is spicy. Upon submission the new meal is added to
- * the global list used throughout the app. Fields are reset afterwards.
+ * Screen que permite ao admin adicionar/editar/remover refeições.
+ * Mesma lógica do teu Context, mas via Flux (store + actions).
  */
 export default function AdminAddMeal() {
-  const { meals, addMeal, updateMeal, removeMeal } = useAdmin();
+  const { meals, error } = useAdminStore();
+
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -37,70 +43,115 @@ export default function AdminAddMeal() {
     setEditingId(null);
   };
 
+  const showWarn = (msg: string) => {
+    if (Platform.OS === "web") {
+      window.alert(msg);
+      return;
+    }
+    Alert.alert("Aviso", msg);
+  };
+
   const handleSave = async () => {
     const priceNum = parseFloat(price);
     const stockNum = parseInt(stock, 10);
+
     if (!name || !description || !category || isNaN(priceNum) || isNaN(stockNum)) {
+      showWarn("Preenche todos os campos corretamente.");
       return;
     }
+
     if (editingId) {
-      // Update existing meal
-      await updateMeal(editingId, {
+      await AdminActions.updateMeal(editingId, {
         name,
         description,
         category,
         price: priceNum,
         stock: stockNum,
         spicy,
-      });
+      } as Partial<Meal>);
     } else {
-      // Add new meal
-      await addMeal({
+      await AdminActions.addMeal({
         name,
         description,
         category,
         price: priceNum,
         spicy,
         stock: stockNum,
-      });
+        // available é calculado pela action, mas podes deixar explícito:
+        available: stockNum > 0,
+      } as any);
+
       setSubmitted(true);
       setTimeout(() => setSubmitted(false), 2000);
     }
+
     resetForm();
   };
 
-  const handleEdit = (meal: any) => {
+  const handleEdit = (meal: Meal) => {
     setEditingId(meal.id);
-    setName(meal.name);
-    setDescription(meal.description);
-    setCategory(meal.category);
-    setPrice(meal.price.toString());
-    setStock(meal.stock.toString());
+    setName(meal.name ?? "");
+    setDescription(meal.description ?? "");
+    setCategory(meal.category ?? "");
+    setPrice((meal.price ?? 0).toString());
+    setStock((meal.stock ?? 0).toString());
     setSpicy(!!meal.spicy);
   };
+
+  const handleRemove = async (mealId: string) => {
+    if (Platform.OS === "web") {
+      const ok = window.confirm("Tens a certeza que queres remover esta refeição?");
+      if (!ok) return;
+      await AdminActions.removeMeal(mealId);
+      return;
+    }
+
+    Alert.alert("Remover", "Tens a certeza que queres remover esta refeição?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Remover",
+        style: "destructive",
+        onPress: () => {
+          void AdminActions.removeMeal(mealId);
+        },
+      },
+    ]);
+  };
+
+  const sortedMeals = useMemo(() => {
+    // Mantém simples e previsível
+    return [...(meals ?? [])].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+  }, [meals]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Gerir Refeições</Text>
-      <Text style={styles.subtitle}>Lista de refeições existentes e formulário para adicionar/editar.</Text>
+      <Text style={styles.subtitle}>
+        Lista de refeições existentes e formulário para adicionar/editar.
+      </Text>
+
+      {!!error && <Text style={styles.errorText}>{error}</Text>}
 
       {/* Existing meals list */}
-      {meals.length > 0 && (
+      {sortedMeals.length > 0 && (
         <View style={{ marginBottom: 20 }}>
-          {meals.map((meal) => (
+          {sortedMeals.map((meal) => (
             <View key={meal.id} style={styles.mealCard}>
               <Text style={styles.mealName}>{meal.name}</Text>
               <Text style={styles.mealCategory}>{meal.category}</Text>
               <Text style={styles.mealDesc}>{meal.description}</Text>
+
               <View style={styles.mealDetailsRow}>
-                <Text style={styles.mealPrice}>{meal.price.toFixed(2)} €</Text>
-                <Text style={styles.mealStock}>Stock: {meal.stock}</Text>
+                <Text style={styles.mealPrice}>{(meal.price ?? 0).toFixed(2)} €</Text>
+                <Text style={styles.mealStock}>Stock: {meal.stock ?? 0}</Text>
               </View>
+
               <View style={styles.mealActionsRow}>
                 <TouchableOpacity style={styles.editButton} onPress={() => handleEdit(meal)}>
                   <Text style={styles.editButtonText}>Editar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteButton} onPress={() => removeMeal(meal.id)}>
+
+                <TouchableOpacity style={styles.deleteButton} onPress={() => handleRemove(meal.id)}>
                   <Text style={styles.deleteButtonText}>Remover</Text>
                 </TouchableOpacity>
               </View>
@@ -143,6 +194,7 @@ export default function AdminAddMeal() {
         onChangeText={setStock}
         keyboardType="numeric"
       />
+
       <View style={styles.switchRow}>
         <Text style={styles.switchLabel}>Picante?</Text>
         <Switch
@@ -152,10 +204,13 @@ export default function AdminAddMeal() {
           thumbColor={spicy ? "#FF6F59" : "#FFF"}
         />
       </View>
+
       {submitted && !editingId && <Text style={styles.success}>Refeição adicionada!</Text>}
+
       <TouchableOpacity style={styles.addButton} onPress={handleSave}>
         <Text style={styles.addButtonText}>{editingId ? "Guardar" : "Adicionar"}</Text>
       </TouchableOpacity>
+
       {editingId && (
         <TouchableOpacity
           style={[styles.addButton, { backgroundColor: "#BDBDBD", marginTop: 8 }]}
@@ -187,6 +242,12 @@ const styles = StyleSheet.create({
     color: "#555",
     marginBottom: 20,
     textAlign: "center",
+  },
+  errorText: {
+    color: "#FF3B30",
+    textAlign: "center",
+    marginBottom: 10,
+    fontWeight: "bold",
   },
   input: {
     borderWidth: 1,
@@ -225,6 +286,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+
   // Styles for meal listing
   mealCard: {
     backgroundColor: "#FFFFFF",

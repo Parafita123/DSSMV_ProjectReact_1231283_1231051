@@ -1,16 +1,37 @@
-type Listener = () => void;
+// src/flux/stores/BaseStore.ts
+export type ChangeListener = () => void;
 
+/**
+ * BaseStore com listeners "unsubscribe-safe".
+ * addChangeListener devolve SEMPRE uma função cleanup (unsubscribe),
+ * para ser usado diretamente no useEffect sem erros de typing.
+ */
 export class BaseStore {
-  private listeners: Listener[] = [];
+  private listeners: Set<ChangeListener> = new Set();
 
-  subscribe(listener: Listener) {
-    this.listeners.push(listener);
+  protected emitChange() {
+    for (const l of Array.from(this.listeners)) {
+      try {
+        l();
+      } catch (e) {
+        // não crashar o app por causa de um listener
+        console.error("Store listener error:", e);
+      }
+    }
+  }
+
+  /**
+   * Adiciona listener e devolve cleanup function.
+   * ✅ Isto é o que o useEffect espera.
+   */
+  public addChangeListener(listener: ChangeListener): () => void {
+    this.listeners.add(listener);
     return () => {
-      this.listeners = this.listeners.filter((l) => l !== listener);
+      this.listeners.delete(listener);
     };
   }
 
-  protected emitChange() {
-    this.listeners.forEach((l) => l());
+  public removeChangeListener(listener: ChangeListener): void {
+    this.listeners.delete(listener);
   }
 }

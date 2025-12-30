@@ -1,4 +1,5 @@
-import React from "react";
+// app/(admin)/AdminReports.tsx
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -6,45 +7,55 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import { useAdmin } from "../context/AdminContext";
 
-/**
- * Screen to list all client reports. The administrator can see the type,
- * description, client email, order ID and creation date of each report. If
- * a report is unresolved, a button allows marking it as resolved. Resolved
- * reports are labelled accordingly. Reports are displayed newest first.
- */
+// ✅ Flux hook + actions
+import { useAdminStore } from "../../src/react/hooks/useAdminStore";
+import { AdminActions } from "../../src/flux/actions/admin.action";
+
 export default function AdminReports() {
-  const { reports, resolveReport } = useAdmin();
+  const { reports } = useAdminStore();
+
+  // newest first (sem mutar o array original do store)
+  const sortedReports = useMemo(() => {
+    const arr = reports ?? [];
+    return [...arr].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [reports]);
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Reports</Text>
       <Text style={styles.subtitle}>
-        Consulta os reports submetidos pelos clientes e marca-os como
-        resolvidos quando apropriado.
+        Consulta os reports submetidos pelos clientes e marca-os como resolvidos
+        quando apropriado.
       </Text>
-      {reports.length === 0 ? (
+
+      {sortedReports.length === 0 ? (
         <Text style={styles.noReports}>Não há reports recentes.</Text>
       ) : (
-        reports.map((report) => (
+        sortedReports.map((report) => (
           <View key={report.id} style={styles.card}>
             <View style={styles.rowBetween}>
               <Text style={styles.reportType}>{report.type}</Text>
               <Text style={styles.reportDate}>
-                {new Date(report.createdAt).toLocaleDateString()} {" "}
+                {new Date(report.createdAt).toLocaleDateString()}{" "}
                 {new Date(report.createdAt).toLocaleTimeString()}
               </Text>
             </View>
+
             <Text style={styles.reportDesc}>{report.description}</Text>
+
             <Text style={styles.reportInfo}>
               Cliente: {report.clientEmail} | Pedido #{report.orderId}
             </Text>
+
             {report.resolved ? (
               <Text style={styles.resolvedLabel}>Resolvido</Text>
             ) : (
               <TouchableOpacity
                 style={styles.resolveButton}
-                onPress={() => resolveReport(report.id)}
+                onPress={() => AdminActions.resolveReport(report.id)}
               >
                 <Text style={styles.resolveButtonText}>Marcar Resolvido</Text>
               </TouchableOpacity>

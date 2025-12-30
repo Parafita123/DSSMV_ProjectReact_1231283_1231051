@@ -1,17 +1,18 @@
-// app/_layout.tsx
 import { Stack } from "expo-router";
 import React, { useEffect } from "react";
+
 import { StoresProvider } from "../src/react/context/StoresContext";
 
+// Actions (carregar dados iniciais)
 import { AuthActions } from "../src/flux/actions/auth.action";
 import { AdminActions } from "../src/flux/actions/admin.action";
 
 export default function RootLayout() {
   useEffect(() => {
-    //Carrega users (login)
+    // carrega users
     AuthActions.init();
 
-    //Carrega refeições para o ecrã "Refeições"
+    // carrega meals (para Cliente e Admin)
     AdminActions.initMeals();
   }, []);
 

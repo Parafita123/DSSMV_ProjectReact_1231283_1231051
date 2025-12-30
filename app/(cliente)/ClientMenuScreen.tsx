@@ -1,20 +1,10 @@
 import React from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
-
-//Flux: ler estado da store (sem context antigo)
 import { useCartStore } from "../../src/react/hooks/useCartStore";
 
 export default function ClientMenuScreen() {
   const router = useRouter();
-
-  //Store snapshot
   const { totalItems } = useCartStore();
 
   return (
@@ -25,10 +15,7 @@ export default function ClientMenuScreen() {
           <Text style={styles.subtitle}>Área do Cliente</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => router.push("/Carrinho")}
-        >
+        <TouchableOpacity style={styles.cartButton} onPress={() => router.push("/Carrinho")}>
           <Text style={styles.cartIcon}>🛒</Text>
           {totalItems > 0 && (
             <View style={styles.cartBadge}>
@@ -41,44 +28,25 @@ export default function ClientMenuScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>O que pretendes fazer?</Text>
         <Text style={styles.cardSubtitle}>
-          Escolhe uma das opções abaixo para gerir a tua conta ou fazer um novo
-          pedido.
+          Escolhe uma das opções abaixo para gerir a tua conta ou fazer um novo pedido.
         </Text>
 
-        <TouchableOpacity
-          style={[styles.button, styles.buttonYellow]}
-          onPress={() => router.push("/Conta")}
-        >
+        <TouchableOpacity style={[styles.button, styles.buttonYellow]} onPress={() => router.push("/Conta")}>
           <Text style={styles.buttonTitle}>Ver Conta</Text>
-          <Text style={styles.buttonDescription}>
-            Ver e editar os teus dados e preferências.
-          </Text>
+          <Text style={styles.buttonDescription}>Ver e editar os teus dados e preferências.</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.buttonOrange]}
-          onPress={() => router.push("/Novo")}
-        >
+        <TouchableOpacity style={[styles.button, styles.buttonOrange]} onPress={() => router.push("/Novo")}>
           <Text style={styles.buttonTitle}>Fazer Pedido</Text>
-          <Text style={styles.buttonDescription}>
-            Criar um novo pedido e escolher a morada de entrega.
-          </Text>
+          <Text style={styles.buttonDescription}>Criar um novo pedido e escolher a morada de entrega.</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.buttonRed]}
-          onPress={() => router.push("/Refeicoes")}
-        >
+        <TouchableOpacity style={[styles.button, styles.buttonRed]} onPress={() => router.push("/Refeicoes")}>
           <Text style={styles.buttonTitle}>Refeições Disponíveis</Text>
-          <Text style={styles.buttonDescription}>
-            Ver os menus e promoções disponíveis na app.
-          </Text>
+          <Text style={styles.buttonDescription}>Ver os menus e promoções disponíveis na app.</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.button, styles.buttonBlue]}
-          onPress={() => router.push("../SugerirReceita")}
-        >
+        <TouchableOpacity style={[styles.button, styles.buttonBlue]} onPress={() => router.push("../SugerirReceita")}>
           <Text style={styles.buttonTitle}>Sugerir Receita</Text>
           <Text style={styles.buttonDescription}>
             Gerar uma receita personalizada com IA e sugeri-la ao menu.

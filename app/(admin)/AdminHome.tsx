@@ -1,7 +1,17 @@
 import { useRouter } from "expo-router";
 import React from "react";
-import { Alert, Platform, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
-import { useAuth } from "../context/AuthContext";
+import {
+  Alert,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+} from "react-native";
+
+//Flux: estado + actions
+import { useAuthStore } from "../../src/react/hooks/useAuthStore";
+import { AuthActions } from "../../src/flux/actions/auth.action";
 
 /**
  * Home screen for the administration area. From here the administrator can
@@ -10,7 +20,10 @@ import { useAuth } from "../context/AuthContext";
  */
 export default function AdminHome() {
   const router = useRouter();
-  const { logout } = useAuth();
+
+  // (Opcional) Se quiseres, podes usar isto no futuro para mostrar nome/role,
+  // ou para bloquear acesso caso não seja admin.
+  const { currentUser } = useAuthStore();
 
   /**
    * Prompt the administrator before logging out. If confirmed, perform the
@@ -18,34 +31,33 @@ export default function AdminHome() {
    * session is cleared and the user must log in again to access the admin
    * area.
    */
- const handleLogout = () => {
-  if (Platform.OS === "web") {
-    const confirmed = window.confirm(
-      "Tem a certeza que pretende terminar sessão?"
-    );
-    if (confirmed) {
-      logout();
+  const handleLogout = () => {
+    const doLogout = () => {
+      AuthActions.logout();
       router.replace("/");
-    }
-    return;
-  }
+    };
 
-  Alert.alert(
-    "Terminar sessão",
-    "Tem a certeza que pretende terminar sessão?",
-    [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Confirmar",
-        style: "destructive",
-        onPress: () => {
-          logout();
-          router.replace("/");
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm(
+        "Tem a certeza que pretende terminar sessão?"
+      );
+      if (confirmed) doLogout();
+      return;
+    }
+
+    Alert.alert(
+      "Terminar sessão",
+      "Tem a certeza que pretende terminar sessão?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Confirmar",
+          style: "destructive",
+          onPress: doLogout,
         },
-      },
-    ]
-  );
-};
+      ]
+    );
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -53,42 +65,49 @@ export default function AdminHome() {
       <Text style={styles.subtitle}>
         Selecione uma opção para gerir a aplicação.
       </Text>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/AdminClients")}
       >
         <Text style={styles.buttonText}>Gerir Clientes</Text>
       </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/AdminBilling")}
       >
         <Text style={styles.buttonText}>Ver Faturação</Text>
       </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/AdminStock")}
       >
         <Text style={styles.buttonText}>Gestão de Stock</Text>
       </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/AdminAddMeal")}
       >
         <Text style={styles.buttonText}>Adicionar/Remover Refeições</Text>
       </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/AdminEmployees")}
       >
         <Text style={styles.buttonText}>Gerir Funcionários</Text>
       </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/AdminEvents")}
       >
         <Text style={styles.buttonText}>Gerir Promoções</Text>
       </TouchableOpacity>
+
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.push("/AdminReports")}
@@ -104,8 +123,7 @@ export default function AdminHome() {
         <Text style={styles.buttonText}>Ver Sugestões</Text>
       </TouchableOpacity>
 
-      {/* Logout button placed at the bottom. Uses a distinct style to
-         differentiate it from other navigation buttons. */}
+      {/* Logout button */}
       <TouchableOpacity
         style={[styles.button, styles.logoutButton]}
         onPress={handleLogout}
@@ -149,9 +167,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  // Style for the logout button. We reuse the base button styles but
-  // override the background color to differentiate it from the other
-  // options. You can customize this further if desired.
   logoutButton: {
     backgroundColor: "#FF6F59",
   },

@@ -23,12 +23,15 @@ export type Meal = {
   promo?: Promotion | null;
 };
 
+
 export type Employee = {
   id: string;
   name: string;
   role: string;
   email: string;
+  createdAt?: string;
 };
+
 
 export type Report = {
   id: string;

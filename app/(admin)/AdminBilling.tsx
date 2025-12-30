@@ -1,26 +1,12 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-} from "react-native";
-import { useAdmin } from "../context/AdminContext";
+import React, { useMemo, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 
-/**
- * Screen for administrators to view company billing over different timeframes.
- * The admin can choose to see the total revenue generated in the last week,
- * month, three months, six months, year or all time. It uses the getBilling
- * helper from AdminContext, which internally pulls all orders from the
- * CartContext. When the timeframe changes the computed total will update.
- */
+//FLUX: usa orders globais do CartStore
+import { getAllOrders } from "../../src/flux/stores/CartStore";
+
 export default function AdminBilling() {
-  const { getBilling } = useAdmin();
   const [timeframe, setTimeframe] = useState<number | "all">(7);
 
-  // Mapping of friendly labels to days. "all" is a special value that
-  // indicates all orders should be included regardless of date.
   const timeframes: { label: string; value: number | "all" }[] = [
     { label: "1 semana", value: 7 },
     { label: "1 mês", value: 30 },
@@ -30,14 +16,31 @@ export default function AdminBilling() {
     { label: "All time", value: "all" },
   ];
 
-  const total = getBilling(timeframe);
+  const total = useMemo(() => {
+    const orders = getAllOrders();
+    if (orders.length === 0) return 0;
+
+    const now = new Date();
+    const cutoff =
+      timeframe === "all"
+        ? null
+        : new Date(now.getTime() - timeframe * 24 * 60 * 60 * 1000);
+
+    const filtered = cutoff
+      ? orders.filter((o: any) => {
+          const d = new Date(o.createdAt);
+          return !isNaN(d.getTime()) && d >= cutoff;
+        })
+      : orders;
+
+    return filtered.reduce((sum: number, o: any) => sum + (o.total ?? 0), 0);
+  }, [timeframe]);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Faturação</Text>
-      <Text style={styles.subtitle}>
-        Escolhe o período para visualizar o total faturado.
-      </Text>
+      <Text style={styles.subtitle}>Escolhe o período para visualizar o total faturado.</Text>
+
       <View style={styles.buttonsRow}>
         {timeframes.map((tf) => (
           <TouchableOpacity
@@ -59,14 +62,15 @@ export default function AdminBilling() {
           </TouchableOpacity>
         ))}
       </View>
+
       <View style={styles.totalCard}>
         <Text style={styles.totalLabel}>Total faturado:</Text>
         <Text style={styles.totalValue}>{total.toFixed(2)} €</Text>
       </View>
+
       <Text style={styles.note}>
-        Esta faturação é calculada com base nos pedidos efetuados no menu do
-        cliente. Quando o cliente coloca uma refeição em promoção, o desconto é
-        considerado nos totais.
+        Esta faturação é calculada com base nos pedidos efetuados no menu do cliente.
+        Promoções já vêm refletidas no total do pedido (o cliente adiciona com o preço já com desconto).
       </Text>
     </ScrollView>
   );
@@ -97,8 +101,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    // Remove gap property; not supported on older React Native versions.
-    // gap: 8,
     marginBottom: 20,
   },
   timeframeButton: {
@@ -108,6 +110,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 8,
+    margin: 4,
   },
   timeframeButtonActive: {
     backgroundColor: "#FF9F1C",

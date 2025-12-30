@@ -111,7 +111,7 @@ export class AuthStoreClass extends BaseStore {
         if (!current) return;
 
         // chama a action "byEmail" que realmente persiste no Supabase
-        AuthActions.updateUserByEmail(current.email, changes);
+        AuthActions.updateUser(changes);
         return;
       }
 

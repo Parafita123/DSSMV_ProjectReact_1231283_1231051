@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+// app/(admin)/AdminSuggestions.tsx
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -10,23 +10,26 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAdmin } from "../context/AdminContext";
+
+// ✅ Flux actions (sem Context)
+import { AdminActions } from "../../src/flux/actions/admin.action";
+
+// ✅ Supabase helpers (igual à tua lógica atual)
 import { deleteRows, fetchTable } from "../supabase";
 
 /**
  * Screen that lists all recipe suggestions submitted by clients via the
- * SugerirReceita screen.  Administrators can review each suggestion
- * and either remove it or add it to the official menu.  Adding to
- * the menu opens a form prefilled with the suggestion's name.  On
+ * SugerirReceita screen. Administrators can review each suggestion
+ * and either remove it or add it to the official menu. Adding to
+ * the menu opens a form prefilled with the suggestion's name. On
  * submission, the new meal is inserted into the "meals" table and
  * removed from the suggestions table.
  */
 export default function AdminSuggestions() {
-  const router = useRouter();
-  const { addMeal } = useAdmin();
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const [selected, setSelected] = useState<any | null>(null);
   const [form, setForm] = useState({
     name: "",
@@ -42,15 +45,18 @@ export default function AdminSuggestions() {
     setError(null);
     try {
       const data = await fetchTable("suggestions", "*");
+
       // Sort by creation date descending so that recent suggestions appear first
-      const sorted = data.sort((a: any, b: any) =>
+      const sorted = (data ?? []).sort((a: any, b: any) =>
         a.createdAt < b.createdAt ? 1 : -1
       );
+
       setSuggestions(sorted);
     } catch (err: any) {
       console.error(err);
+
       // If the table does not exist in Supabase, inform the admin.
-      const msg: string = err.message || "";
+      const msg: string = err?.message || "";
       if (msg.includes("Could not find the table")) {
         setError(
           "Tabela 'suggestions' não encontrada na base de dados Supabase. Crie a tabela para ativar esta funcionalidade."
@@ -71,26 +77,23 @@ export default function AdminSuggestions() {
     loadSuggestions();
   }, []);
 
- const handleRemove = async (id: string) => {
-  try {
-    await deleteRows("suggestions", `id=eq.${id}`);
+  const handleRemove = async (id: string) => {
+    try {
+      await deleteRows("suggestions", `id=eq.${id}`);
 
-    // 🔥 REFRESCAR A LISTA A PARTIR DO SUPABASE
-    await loadSuggestions();
-  } catch (err: any) {
-    console.error(err);
-    alert(
-      err.message || "Erro ao remover sugestão. Tenta novamente mais tarde."
-    );
-  }
-};
-
+      // 🔥 refrescar a lista a partir do Supabase (mesma lógica)
+      await loadSuggestions();
+    } catch (err: any) {
+      console.error(err);
+      alert(err?.message || "Erro ao remover sugestão. Tenta novamente mais tarde.");
+    }
+  };
 
   const handleAddToMenu = (suggestion: any) => {
     setSelected(suggestion);
     setForm({
-      name: suggestion.name || "",
-      description: suggestion.description || "",
+      name: suggestion?.name || "",
+      description: suggestion?.description || "",
       category: "",
       price: "",
       stock: "1",
@@ -99,32 +102,38 @@ export default function AdminSuggestions() {
 
   const submitMeal = async () => {
     if (!selected) return;
+
     // Validate mandatory fields
     if (!form.name || !form.description || !form.category || !form.price) {
       alert("Preenche todos os campos.");
       return;
     }
+
     setSubmitting(true);
     try {
-      // Use AdminContext's addMeal which inserts into Supabase and updates local state
-      await addMeal({
+      // ✅ Flux: adiciona ao menu via AdminActions (store mantém meals atualizadas)
+      await AdminActions.addMeal({
         name: form.name,
         description: form.description,
         category: form.category,
         price: parseFloat(form.price),
         spicy: false,
         stock: parseInt(form.stock) || 0,
+        available: (parseInt(form.stock) || 0) > 0,
       });
+
       // Remove suggestion from Supabase
       await deleteRows("suggestions", `id=eq.${selected.id}`);
+
       await loadSuggestions();
       setSelected(null);
+
       alert("Refeição adicionada ao menu com sucesso!");
     } catch (err: any) {
       console.error(err);
       alert(
-        err.message ||
-        "Erro ao adicionar refeição. Verifica a tua ligação ou tenta novamente."
+        err?.message ||
+          "Erro ao adicionar refeição. Verifica a tua ligação ou tenta novamente."
       );
     } finally {
       setSubmitting(false);
@@ -134,18 +143,24 @@ export default function AdminSuggestions() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Sugestões de Receitas</Text>
-      {loading && <ActivityIndicator size="large" color="#FF6F59" />} 
+
+      {loading && <ActivityIndicator size="large" color="#FF6F59" />}
+
       {error && <Text style={styles.errorText}>{error}</Text>}
+
       {!loading && suggestions.length === 0 && (
         <Text style={styles.emptyText}>Ainda não existem sugestões.</Text>
       )}
+
       {suggestions.map((sug) => (
         <View key={sug.id} style={styles.card}>
           <Text style={styles.cardTitle}>{sug.name}</Text>
           <Text style={styles.cardMeta}>
-            Submetido por: {sug.clientEmail} em {new Date(sug.createdAt).toLocaleDateString()}
+            Submetido por: {sug.clientEmail} em{" "}
+            {new Date(sug.createdAt).toLocaleDateString()}
           </Text>
           <Text style={styles.cardContent}>{sug.description}</Text>
+
           <View style={styles.actionsRow}>
             <TouchableOpacity
               style={[styles.actionButton, styles.removeButton]}
@@ -153,6 +168,7 @@ export default function AdminSuggestions() {
             >
               <Text style={styles.actionButtonText}>Remover</Text>
             </TouchableOpacity>
+
             <TouchableOpacity
               style={[styles.actionButton, styles.addButton]}
               onPress={() => handleAddToMenu(sug)}
@@ -162,51 +178,70 @@ export default function AdminSuggestions() {
           </View>
         </View>
       ))}
+
       {/* Modal for adding a suggestion to the menu */}
       <Modal visible={!!selected} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Adicionar ao Menu</Text>
+
             <TextInput
               style={styles.input}
               placeholder="Nome da Refeição"
               value={form.name}
-              onChangeText={(text) => setForm((prev) => ({ ...prev, name: text }))}
+              onChangeText={(text) =>
+                setForm((prev) => ({ ...prev, name: text }))
+              }
             />
+
             <TextInput
               style={[styles.input, { height: 80 }]}
               multiline
               placeholder="Descrição"
               value={form.description}
-              onChangeText={(text) => setForm((prev) => ({ ...prev, description: text }))}
+              onChangeText={(text) =>
+                setForm((prev) => ({ ...prev, description: text }))
+              }
             />
+
             <TextInput
               style={styles.input}
               placeholder="Categoria"
               value={form.category}
-              onChangeText={(text) => setForm((prev) => ({ ...prev, category: text }))}
+              onChangeText={(text) =>
+                setForm((prev) => ({ ...prev, category: text }))
+              }
             />
+
             <TextInput
               style={styles.input}
               placeholder="Preço (€)"
               keyboardType="numeric"
               value={form.price}
-              onChangeText={(text) => setForm((prev) => ({ ...prev, price: text }))}
+              onChangeText={(text) =>
+                setForm((prev) => ({ ...prev, price: text }))
+              }
             />
+
             <TextInput
               style={styles.input}
               placeholder="Stock inicial"
               keyboardType="numeric"
               value={form.stock}
-              onChangeText={(text) => setForm((prev) => ({ ...prev, stock: text }))}
+              onChangeText={(text) =>
+                setForm((prev) => ({ ...prev, stock: text }))
+              }
             />
+
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setSelected(null)}
+                disabled={submitting}
               >
                 <Text style={styles.modalButtonText}>Cancelar</Text>
               </TouchableOpacity>
+
               <TouchableOpacity
                 style={[styles.modalButton, styles.confirmButton]}
                 onPress={submitMeal}

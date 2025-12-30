@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,46 +7,62 @@ import {
   TouchableOpacity,
   ScrollView,
 } from "react-native";
-import { useAdmin } from "../context/AdminContext";
+
+import { useAdminStore } from "../../src/react/hooks/useAdminStore";
+import { AdminActions } from "../../src/flux/actions/admin.action";
+import type { Meal } from "../../src/flux/types/cart.types";
 
 /**
- * Screen for managing promotions/events. Administrators can assign a discount
- * percentage to a meal for a fixed period (defaults to 7 days from the
- * current date). Active promotions are displayed with their discount and
- * expiration date. Promotions can be removed at any time.
+ * AdminEvents (FLUX)
+ * Lógica igual ao Context:
+ * - definir promoção (desconto%) por 7 dias
+ * - remover promoção
  */
 export default function AdminEvents() {
-  const { meals, addPromotion, removePromotion } = useAdmin();
-  // local state to hold discount input per meal
+  const { meals } = useAdminStore();
   const [discounts, setDiscounts] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    // garante que há meals carregadas (sem estragar nada se já estiverem)
+    if (!meals || meals.length === 0) {
+      void AdminActions.initMeals();
+    }
+  }, [meals?.length]);
 
   const handleChange = (mealId: string, value: string) => {
     setDiscounts((prev) => ({ ...prev, [mealId]: value }));
   };
 
-  const handleAddPromo = (mealId: string) => {
+  const handleAddPromo = async (mealId: string) => {
     const value = parseFloat(discounts[mealId]);
-    if (isNaN(value) || value <= 0) return;
+    if (Number.isNaN(value) || value <= 0) return;
+
     const now = new Date();
     const startAt = now.toISOString();
     const endAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-    addPromotion(mealId, value, startAt, endAt);
+
+    await AdminActions.addPromotion(mealId, value, startAt, endAt);
     setDiscounts((prev) => ({ ...prev, [mealId]: "" }));
+  };
+
+  const handleRemovePromo = async (mealId: string) => {
+    await AdminActions.removePromotion(mealId);
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Gestão de Promoções</Text>
       <Text style={styles.subtitle}>
-        Atribui descontos às refeições por um período limitado. Os clientes
-        verão o preço reduzido durante a promoção.
+        Atribui descontos às refeições por um período limitado. Os clientes verão o preço reduzido durante a promoção.
       </Text>
-      {meals.map((meal) => {
-        const promoActive =
-          meal.promo && new Date(meal.promo.endAt) > new Date();
+
+      {meals.map((meal: Meal) => {
+        const promoActive = !!meal.promo && new Date(meal.promo.endAt) > new Date();
+
         return (
           <View key={meal.id} style={styles.card}>
             <Text style={styles.mealName}>{meal.name}</Text>
+
             {promoActive ? (
               <View style={styles.promoInfo}>
                 <Text style={styles.promoText}>
@@ -57,7 +73,7 @@ export default function AdminEvents() {
                 </Text>
                 <TouchableOpacity
                   style={styles.removeButton}
-                  onPress={() => removePromotion(meal.id)}
+                  onPress={() => handleRemovePromo(meal.id)}
                 >
                   <Text style={styles.removeButtonText}>Remover</Text>
                 </TouchableOpacity>
@@ -148,8 +164,6 @@ const styles = StyleSheet.create({
   addPromoRow: {
     flexDirection: "row",
     alignItems: "center",
-    // Remove gap property; not supported on older React Native versions.
-    // gap: 8,
   },
   discountInput: {
     borderWidth: 1,
@@ -160,6 +174,7 @@ const styles = StyleSheet.create({
     width: 80,
     fontSize: 14,
     backgroundColor: "#FFF",
+    marginRight: 8,
   },
   addButton: {
     backgroundColor: "#FF9F1C",

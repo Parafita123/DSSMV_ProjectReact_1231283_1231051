@@ -1,18 +1,27 @@
 // src/react/hooks/useCartStore.ts
-import { useEffect, useState } from "react";
-import { CartStore } from "../../flux/stores/CartStore";
+import { useEffect, useMemo, useState } from "react";
+import { useStores } from "../context/StoresContext";
+import type { CartState } from "../../flux/stores/CartStore";
 
 export function useCartStore() {
-  const [snap, setSnap] = useState(CartStore.getState());
+  const { cartStore } = useStores();
+
+  const [snap, setSnap] = useState<CartState>(cartStore.getState());
 
   useEffect(() => {
-    const unsub = CartStore.subscribe(() => setSnap(CartStore.getState()));
-    return () => unsub();
-  }, []);
+    const onChange = () => setSnap(cartStore.getState());
+
+    // ✅ BaseStore.addChangeListener devolve unsubscribe()
+    const unsubscribe = cartStore.addChangeListener(onChange);
+    return unsubscribe;
+  }, [cartStore]);
+
+  const totalItems = useMemo(() => cartStore.getTotalItems(), [snap.items]);
+  const totalPrice = useMemo(() => cartStore.getTotalPrice(), [snap.items]);
 
   return {
-    cartItems: snap.cartItems,
-    orders: snap.orders,
-    totalItems: snap.cartItems.length,
+    ...snap,
+    totalItems,
+    totalPrice,
   };
 }
