@@ -1,5 +1,5 @@
 // app/(admin)/AdminStock.tsx
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,22 +9,16 @@ import {
   ScrollView,
 } from "react-native";
 
-// ✅ Flux: ler meals da store
 import { useAdminStore } from "../../src/react/hooks/useAdminStore";
-
-// ✅ Flux: actions
 import { AdminActions } from "../../src/flux/actions/admin.action";
 
-/**
- * Screen for administrators to manage stock of meals/products. Each meal is
- * listed with its current stock count and buttons to increment or decrement
- * the stock. There is also an input to set the stock to an absolute value.
- */
 export default function AdminStock() {
   const { meals } = useAdminStore();
-
-  // local state to hold absolute stock edits keyed by meal id
   const [editValues, setEditValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    void AdminActions.initMeals();
+  }, []);
 
   const handleChange = (mealId: string, text: string) => {
     setEditValues((prev) => ({ ...prev, [mealId]: text }));
@@ -33,8 +27,7 @@ export default function AdminStock() {
   const handleSetStock = (mealId: string) => {
     const value = parseInt(editValues[mealId], 10);
     if (!isNaN(value)) {
-      // ✅ igual ao antigo: set absoluto (3º argumento true)
-      AdminActions.updateStock(mealId, value, true);
+      void AdminActions.updateStock(mealId, value, true);
       setEditValues((prev) => ({ ...prev, [mealId]: "" }));
     }
   };
@@ -47,7 +40,7 @@ export default function AdminStock() {
         stock chegar a zero, a refeição fica indisponível no menu do cliente.
       </Text>
 
-      {meals.map((meal) => (
+      {(meals ?? []).map((meal) => (
         <View key={meal.id} style={styles.card}>
           <View style={styles.rowBetween}>
             <Text style={styles.mealName}>{meal.name}</Text>
@@ -59,17 +52,17 @@ export default function AdminStock() {
           <View style={styles.stockRow}>
             <TouchableOpacity
               style={styles.adjustButton}
-              onPress={() => AdminActions.updateStock(meal.id, -1)}
+              onPress={() => void AdminActions.updateStock(meal.id, -1)}
               disabled={(meal.stock ?? 0) <= 0}
             >
               <Text style={styles.adjustButtonText}>-</Text>
             </TouchableOpacity>
 
-            <Text style={styles.stockValue}>{meal.stock}</Text>
+            <Text style={styles.stockValue}>{meal.stock ?? 0}</Text>
 
             <TouchableOpacity
               style={styles.adjustButton}
-              onPress={() => AdminActions.updateStock(meal.id, 1)}
+              onPress={() => void AdminActions.updateStock(meal.id, 1)}
             >
               <Text style={styles.adjustButtonText}>+</Text>
             </TouchableOpacity>

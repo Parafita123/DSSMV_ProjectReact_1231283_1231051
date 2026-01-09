@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   View,
   Text,
@@ -7,23 +7,25 @@ import {
   TouchableOpacity,
 } from "react-native";
 
-//Flux: ler estado das stores
 import { useAdminStore } from "../../../src/react/hooks/useAdminStore";
 import { useCartStore } from "../../../src/react/hooks/useCartStore";
 
-//Flux: actions (intent/event)
 import { addToCart } from "../../../src/flux/actions/cart.action";
+import { AdminActions } from "../../../src/flux/actions/admin.action";
 
-//Types
-import type { Meal } from "../../../src/flux/types/admin.types";
+import type { Meal } from "../../../src/flux/types/cart.types";
 
 const RefeicoesScreen: React.FC = () => {
-  // Store -> UI
   const { meals } = useAdminStore();
-  useCartStore(); // mantém a store ativa (opcional, mas ok)
+  useCartStore();
+
+  useEffect(() => {
+    void AdminActions.initMeals();
+  }, []);
+
+  const mealsSafe = meals ?? [];
 
   const renderMeal = ({ item }: { item: Meal }) => {
-    //Mesma lógica de promo
     let isPromo = false;
     let promoPrice = item.price;
 
@@ -38,11 +40,9 @@ const RefeicoesScreen: React.FC = () => {
       }
     }
 
-    // Ao adicionar ao carrinho, copia e substitui o preço pelo preço promocional
     const handleAdd = () => {
       const mealToAdd = { ...item, price: promoPrice };
       addToCart(mealToAdd as any);
-      // ^ se o teu cart.types Meal != admin.types Meal, diz-me e eu deixo tipado certinho
     };
 
     return (
@@ -109,7 +109,7 @@ const RefeicoesScreen: React.FC = () => {
       </Text>
 
       <FlatList
-        data={meals}
+        data={mealsSafe}
         keyExtractor={(item) => item.id}
         renderItem={renderMeal}
         contentContainerStyle={styles.listContent}
@@ -121,6 +121,7 @@ const RefeicoesScreen: React.FC = () => {
 
 export default RefeicoesScreen;
 
+// (styles iguais ao teu)
 const styles = StyleSheet.create({
   container: {
     flex: 1,

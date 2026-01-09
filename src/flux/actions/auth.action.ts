@@ -74,7 +74,7 @@ export const AuthActions = {
     setError(null);
 
     try {
-      const email = user.email.trim();
+      const email = user.email.trim();AuthActions.updateUserByEmail(current.email, changes);
       const normalizedEmail = email.toLowerCase();
 
       // Proteção contra duplicados (igual ao Context antigo)

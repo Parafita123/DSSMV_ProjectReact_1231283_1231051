@@ -162,12 +162,25 @@ export class AdminStoreClass extends BaseStore {
         return;
       }
 
-      // ✅ compat (se algum ficheiro antigo ainda dispatchar isto)
-      case AdminActionTypes.ADD_REPORT:
-        return;
+      case AdminActionTypes.ADD_REPORT: {
+  const report = action.payload?.report;
+  if (!report) return;
 
-      case AdminActionTypes.RESOLVE_REPORT:
-        return;
+  this.setState({
+    reports: [report, ...this.state.reports],
+  });
+  return;
+}
+
+      case AdminActionTypes.RESOLVE_REPORT: {
+  const reportId: string = action.payload?.reportId;
+  this.setState({
+    reports: this.state.reports.map((r) =>
+      r.id === reportId ? { ...r, resolved: true } : r
+    ),
+  });
+  return;
+}
 
       // ---- Employees ----
       case AdminActionTypes.EMPLOYEES_REQUEST:

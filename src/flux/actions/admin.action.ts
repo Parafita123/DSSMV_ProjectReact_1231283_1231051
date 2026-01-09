@@ -4,14 +4,94 @@ import type { Meal } from "../types/cart.types";
 import type { User } from "../types/auth.types";
 import type { Employee, Report } from "../types/admin.types";
 
-import { fetchTable, insertRow, updateRows, deleteRows } from "../../../app/supabase";
+import { fetchTable, deleteRows } from "../../../app/supabase";
+
+/**
+ * ⚠️ Não mexemos no supabase.ts.
+ * - Para evitar "Already read", fazemos PATCH/POST aqui com leitura do body 1x.
+ * - Para evitar UUID inválido, o addMeal passa a usar POST com return=representation
+ *   (assim apanha o UUID real do Supabase).
+ */
+
+const SUPABASE_URL = "https://xrzgniwdagwvcygqerjd.supabase.co";
+const SUPABASE_API_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhyemduaXdkYWd3dmN5Z3FlcmpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5OTE0NDYsImV4cCI6MjA4MTU2NzQ0Nn0.O7obWlRudDfHg07hzuEAAY6H1G1br0ht6_zfeHam_Tg";
+
+function toMsg(err: any, fallback: string) {
+  return err?.message || fallback;
+}
+
+async function supabasePatch(table: string, filter: string, body: any) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?${filter}`;
+
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      apikey: SUPABASE_API_KEY,
+      Authorization: `Bearer ${SUPABASE_API_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await res.text(); // ✅ ler uma vez
+  if (!res.ok) {
+    throw new Error(text || `Supabase PATCH error (${res.status})`);
+  }
+
+  if (!text) return [];
+  try {
+    return JSON.parse(text);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * ✅ POST que devolve a row inserida (UUID real!)
+ * Isto resolve o teu "invalid input syntax for type uuid: 1767..."
+ */
+async function supabaseInsert(table: string, body: any) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_API_KEY,
+      Authorization: `Bearer ${SUPABASE_API_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await res.text(); // ✅ ler uma vez
+  if (!res.ok) {
+    throw new Error(text || `Supabase POST error (${res.status})`);
+  }
+
+  if (!text) return null;
+  try {
+    const parsed = JSON.parse(text);
+    // PostgREST devolve array
+    return Array.isArray(parsed) ? parsed[0] : parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ✅ Employees sem Supabase: persistem durante a app estar aberta.
+ * (não persistem ao matar a app, que é o esperado)
+ */
+let employeesMemory: Employee[] = [];
 
 export const AdminActionTypes = {
   // Meals
   MEALS_REQUEST: "ADMIN/MEALS_REQUEST",
   MEALS_SUCCESS: "ADMIN/MEALS_SUCCESS",
   MEALS_FAILURE: "ADMIN/MEALS_FAILURE",
-
   MEAL_ADD_SUCCESS: "ADMIN/MEAL_ADD_SUCCESS",
   MEAL_UPDATE_SUCCESS: "ADMIN/MEAL_UPDATE_SUCCESS",
   MEAL_REMOVE_SUCCESS: "ADMIN/MEAL_REMOVE_SUCCESS",
@@ -24,17 +104,17 @@ export const AdminActionTypes = {
   CLIENT_PATCH_SUCCESS: "ADMIN/CLIENT_PATCH_SUCCESS",
   CLIENT_REMOVE_SUCCESS: "ADMIN/CLIENT_REMOVE_SUCCESS",
 
-  // Reports (compat + flux)
+  // Reports
   REPORTS_REQUEST: "ADMIN/REPORTS_REQUEST",
   REPORTS_SUCCESS: "ADMIN/REPORTS_SUCCESS",
   REPORTS_FAILURE: "ADMIN/REPORTS_FAILURE",
   REPORT_RESOLVE_SUCCESS: "ADMIN/REPORT_RESOLVE_SUCCESS",
 
-  // ✅ compat com AdminStore antigo
+  // compat (para não dar erro no AdminStore)
   ADD_REPORT: "ADMIN/ADD_REPORT",
   RESOLVE_REPORT: "ADMIN/RESOLVE_REPORT",
 
-  // Employees
+  // Employees (local)
   EMPLOYEES_REQUEST: "ADMIN/EMPLOYEES_REQUEST",
   EMPLOYEES_SUCCESS: "ADMIN/EMPLOYEES_SUCCESS",
   EMPLOYEES_FAILURE: "ADMIN/EMPLOYEES_FAILURE",
@@ -46,36 +126,18 @@ export const AdminActionTypes = {
   PROMO_REMOVE_SUCCESS: "ADMIN/PROMO_REMOVE_SUCCESS",
 } as const;
 
-function toMsg(err: any, fallback: string) {
-  return err?.message || fallback;
-}
-
-/**
- * ✅ Tu disseste: Supabase só tem tables: suggestions, clients, meals.
- * Então employees/reports ficam em memória (persistência local).
- */
-let memEmployees: Employee[] = [];
-let memReports: Report[] = [];
-
 export const AdminActions = {
-  // -------- Meals (Supabase) --------
+  // -------- Meals --------
   async initMeals() {
     Dispatcher.dispatch({ type: AdminActionTypes.MEALS_REQUEST });
     try {
       const meals = await fetchTable<Meal>("meals", "*");
 
-      // 🔥 Normalizar para não “sumir” tudo por available/stock undefined
-      const normalized = (meals ?? []).map((m) => {
-        const stockNum = Number((m as any).stock ?? 0);
+      const normalized = (meals ?? []).map((m: any) => {
+        const stock = Number(m.stock ?? 0);
         const available =
-          typeof (m as any).available === "boolean" ? (m as any).available : stockNum > 0;
-
-        return {
-          ...m,
-          stock: Number.isFinite(stockNum) ? stockNum : 0,
-          available,
-          promo: (m as any).promo ?? null,
-        } as Meal;
+          typeof m.available === "boolean" ? m.available : stock > 0;
+        return { ...m, stock, available };
       });
 
       Dispatcher.dispatch({
@@ -93,16 +155,16 @@ export const AdminActions = {
   async addMeal(data: Omit<Meal, "id"> & Partial<Pick<Meal, "available">>) {
     const payload: any = {
       ...data,
-      stock: Number(data.stock ?? 0),
-      available:
-        typeof data.available === "boolean"
-          ? data.available
-          : Number(data.stock ?? 0) > 0,
-      promo: (data as any).promo ?? null,
+      stock: Number((data as any).stock ?? 0),
     };
 
-    const inserted = await insertRow("meals", payload);
+    payload.available =
+      typeof data.available === "boolean" ? data.available : payload.stock > 0;
 
+    // ✅ IMPORTANTÍSSIMO: agora devolve o UUID real do Supabase
+    const inserted = await supabaseInsert("meals", payload);
+
+    // se por alguma razão vier null, faz fallback mas avisa no state (evita rebentar)
     const meal: Meal =
       (inserted as any) ??
       ({
@@ -120,12 +182,12 @@ export const AdminActions = {
     const patch: any = { ...changes };
 
     if (patch.stock != null) {
-      const s = Number(patch.stock);
-      patch.stock = Number.isFinite(s) ? s : 0;
+      patch.stock = Number(patch.stock);
       patch.available = patch.stock > 0;
     }
 
-    await updateRows("meals", `id=eq.${mealId}`, patch);
+    // ✅ com UUID certo deixa de falhar
+    await supabasePatch("meals", `id=eq.${mealId}`, patch);
 
     Dispatcher.dispatch({
       type: AdminActionTypes.MEAL_UPDATE_SUCCESS,
@@ -134,6 +196,7 @@ export const AdminActions = {
   },
 
   async removeMeal(mealId: string) {
+    // ✅ com UUID certo deixa de falhar
     await deleteRows("meals", `id=eq.${mealId}`);
 
     Dispatcher.dispatch({
@@ -148,29 +211,21 @@ export const AdminActions = {
       payload: { mealId, deltaOrValue, absolute },
     });
 
-    // Persistência no Supabase (meals existe)
-    if (absolute) {
-      const stock = Math.max(0, Number(deltaOrValue) || 0);
-      await updateRows("meals", `id=eq.${mealId}`, {
-        stock,
-        available: stock > 0,
-      });
-      return;
-    }
-
-    // delta: lê estado atual e calcula próximo
-    const rows = await fetchTable<Meal>("meals", "id,stock,available");
+    const rows = await fetchTable<Meal>("meals", "id,stock");
     const current = (rows ?? []).find((m) => m.id === mealId);
     const currentStock = Number((current as any)?.stock ?? 0);
-    const next = Math.max(0, currentStock + (Number(deltaOrValue) || 0));
 
-    await updateRows("meals", `id=eq.${mealId}`, {
+    const next = absolute
+      ? Math.max(0, Number(deltaOrValue))
+      : Math.max(0, currentStock + Number(deltaOrValue));
+
+    await supabasePatch("meals", `id=eq.${mealId}`, {
       stock: next,
       available: next > 0,
     });
   },
 
-  // -------- Clients (Supabase) --------
+  // -------- Clients --------
   async initClients() {
     Dispatcher.dispatch({ type: AdminActionTypes.CLIENTS_REQUEST });
     try {
@@ -188,7 +243,9 @@ export const AdminActions = {
   },
 
   async banClient(email: string) {
-    await updateRows("clients", `email=eq.${encodeURIComponent(email)}`, { banned: true });
+    await supabasePatch("clients", `email=eq.${encodeURIComponent(email)}`, {
+      banned: true,
+    });
     Dispatcher.dispatch({
       type: AdminActionTypes.CLIENT_PATCH_SUCCESS,
       payload: { email, changes: { banned: true } },
@@ -196,7 +253,9 @@ export const AdminActions = {
   },
 
   async unbanClient(email: string) {
-    await updateRows("clients", `email=eq.${encodeURIComponent(email)}`, { banned: false });
+    await supabasePatch("clients", `email=eq.${encodeURIComponent(email)}`, {
+      banned: false,
+    });
     Dispatcher.dispatch({
       type: AdminActionTypes.CLIENT_PATCH_SUCCESS,
       payload: { email, changes: { banned: false } },
@@ -204,7 +263,9 @@ export const AdminActions = {
   },
 
   async blockClient(email: string) {
-    await updateRows("clients", `email=eq.${encodeURIComponent(email)}`, { blocked: true });
+    await supabasePatch("clients", `email=eq.${encodeURIComponent(email)}`, {
+      blocked: true,
+    });
     Dispatcher.dispatch({
       type: AdminActionTypes.CLIENT_PATCH_SUCCESS,
       payload: { email, changes: { blocked: true } },
@@ -212,7 +273,9 @@ export const AdminActions = {
   },
 
   async unblockClient(email: string) {
-    await updateRows("clients", `email=eq.${encodeURIComponent(email)}`, { blocked: false });
+    await supabasePatch("clients", `email=eq.${encodeURIComponent(email)}`, {
+      blocked: false,
+    });
     Dispatcher.dispatch({
       type: AdminActionTypes.CLIENT_PATCH_SUCCESS,
       payload: { email, changes: { blocked: false } },
@@ -227,122 +290,15 @@ export const AdminActions = {
     });
   },
 
-  // -------- Reports (MEMÓRIA) --------
-  async initReports() {
-    Dispatcher.dispatch({ type: AdminActionTypes.REPORTS_REQUEST });
-    try {
-      Dispatcher.dispatch({
-        type: AdminActionTypes.REPORTS_SUCCESS,
-        payload: { reports: memReports },
-      });
-    } catch (err: any) {
-      Dispatcher.dispatch({
-        type: AdminActionTypes.REPORTS_FAILURE,
-        payload: { error: toMsg(err, "Erro ao carregar reports.") },
-      });
-    }
-  },
-
-  // compat: views chamam resolveReport(reportId)
-  async resolveReport(reportId: string) {
-    memReports = memReports.map((r) => (r.id === reportId ? { ...r, resolved: true } : r));
-
-    Dispatcher.dispatch({
-      type: AdminActionTypes.REPORT_RESOLVE_SUCCESS,
-      payload: { reportId },
-    });
-
-    // compat com store antigo
-    Dispatcher.dispatch({
-      type: AdminActionTypes.RESOLVE_REPORT,
-      payload: { reportId },
-    });
-  },
-
-  // compat caso exista código antigo a chamar addReport
-  addReport(data: {
-    clientEmail: string;
-    orderId: string;
-    type: string;
-    description: string;
-  }) {
-    const report: Report = {
-      id: String(Date.now()),
-      clientEmail: data.clientEmail,
-      orderId: data.orderId,
-      type: data.type,
-      description: data.description,
-      createdAt: new Date().toISOString(),
-      resolved: false,
-    };
-
-    memReports = [report, ...memReports];
-
-    Dispatcher.dispatch({
-      type: AdminActionTypes.ADD_REPORT,
-      payload: { data },
-    });
-
-    Dispatcher.dispatch({
-      type: AdminActionTypes.REPORTS_SUCCESS,
-      payload: { reports: memReports },
-    });
-  },
-
-  // -------- Employees (MEMÓRIA) --------
-  async initEmployees() {
-    Dispatcher.dispatch({ type: AdminActionTypes.EMPLOYEES_REQUEST });
-    try {
-      Dispatcher.dispatch({
-        type: AdminActionTypes.EMPLOYEES_SUCCESS,
-        payload: { employees: memEmployees },
-      });
-    } catch (err: any) {
-      Dispatcher.dispatch({
-        type: AdminActionTypes.EMPLOYEES_FAILURE,
-        payload: { error: toMsg(err, "Erro ao carregar funcionários.") },
-      });
-    }
-  },
-
-  async addEmployee(data: Omit<Employee, "id">) {
-    const employee: Employee = {
-      id: String(Date.now()),
-      ...data,
-      createdAt: new Date().toISOString(),
-    };
-
-    memEmployees = [employee, ...memEmployees];
-
-    Dispatcher.dispatch({
-      type: AdminActionTypes.EMPLOYEE_ADD_SUCCESS,
-      payload: { employee },
-    });
-
-    Dispatcher.dispatch({
-      type: AdminActionTypes.EMPLOYEES_SUCCESS,
-      payload: { employees: memEmployees },
-    });
-  },
-
-  async removeEmployee(employeeId: string) {
-    memEmployees = memEmployees.filter((e) => e.id !== employeeId);
-
-    Dispatcher.dispatch({
-      type: AdminActionTypes.EMPLOYEE_REMOVE_SUCCESS,
-      payload: { employeeId },
-    });
-
-    Dispatcher.dispatch({
-      type: AdminActionTypes.EMPLOYEES_SUCCESS,
-      payload: { employees: memEmployees },
-    });
-  },
-
-  // -------- Promotions (Supabase meals) --------
-  async addPromotion(mealId: string, discountPercent: number, startAt: string, endAt: string) {
+  // -------- Promotions --------
+  async addPromotion(
+    mealId: string,
+    discountPercent: number,
+    startAt: string,
+    endAt: string
+  ) {
     const promo = { discountPercent, startAt, endAt };
-    await updateRows("meals", `id=eq.${mealId}`, { promo });
+    await supabasePatch("meals", `id=eq.${mealId}`, { promo });
 
     Dispatcher.dispatch({
       type: AdminActionTypes.PROMO_SET_SUCCESS,
@@ -351,11 +307,74 @@ export const AdminActions = {
   },
 
   async removePromotion(mealId: string) {
-    await updateRows("meals", `id=eq.${mealId}`, { promo: null });
+    await supabasePatch("meals", `id=eq.${mealId}`, { promo: null });
 
     Dispatcher.dispatch({
       type: AdminActionTypes.PROMO_REMOVE_SUCCESS,
       payload: { mealId },
     });
   },
+
+  // -------- Reports (local-only) --------
+  async initReports() {
+    Dispatcher.dispatch({
+      type: AdminActionTypes.REPORTS_SUCCESS,
+      payload: { reports: [] },
+    });
+  },
+
+  async resolveReport(reportId: string) {
+    Dispatcher.dispatch({
+      type: AdminActionTypes.REPORT_RESOLVE_SUCCESS,
+      payload: { reportId },
+    });
+  },
+
+  async addReport(data: Omit<Report, "id" | "createdAt" | "resolved">) {
+    const report: Report = {
+      id: String(Date.now()),
+      createdAt: new Date().toISOString(),
+      resolved: false,
+      ...data,
+    };
+
+    Dispatcher.dispatch({
+      type: AdminActionTypes.ADD_REPORT,
+      payload: { report },
+    });
+  },
+
+  // -------- Employees (local-only, mas persistem durante a app aberta) --------
+  async initEmployees() {
+    Dispatcher.dispatch({
+      type: AdminActionTypes.EMPLOYEES_SUCCESS,
+      payload: { employees: employeesMemory },
+    });
+  },
+
+  async addEmployee(data: Omit<Employee, "id">) {
+    const employee: Employee = { id: String(Date.now()), ...data };
+    employeesMemory = [employee, ...employeesMemory];
+
+    Dispatcher.dispatch({
+      type: AdminActionTypes.EMPLOYEE_ADD_SUCCESS,
+      payload: { employee },
+    });
+  },
+
+  async removeEmployee(employeeId: string) {
+    employeesMemory = employeesMemory.filter((e) => e.id !== employeeId);
+
+    Dispatcher.dispatch({
+      type: AdminActionTypes.EMPLOYEE_REMOVE_SUCCESS,
+      payload: { employeeId },
+    });
+  },
 };
+
+// ✅ exports diretos para views que importam funções
+export const addReport = (data: Omit<Report, "id" | "createdAt" | "resolved">) =>
+  AdminActions.addReport(data);
+
+export const resolveReport = (reportId: string) =>
+  AdminActions.resolveReport(reportId);
