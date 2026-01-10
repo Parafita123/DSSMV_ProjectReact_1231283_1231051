@@ -1,25 +1,25 @@
-// src/react/context/StoresContext.tsx
 import React, { createContext, useContext, useMemo } from "react";
 
-import { AuthStoreClass } from "../../flux/stores/AuthStore";
-import { CartStoreClass } from "../../flux/stores/CartStore";
-import { AdminStoreClass } from "../../flux/stores/AdminStore";
+// ✅ IMPORTAR AS INSTÂNCIAS SINGLETON (não as classes)
+import { AuthStore } from "../../flux/stores/AuthStore";
+import { CartStore } from "../../flux/stores/CartStore";
+import { AdminStore } from "../../flux/stores/AdminStore";
 
 type Stores = {
-  authStore: AuthStoreClass;
-  cartStore: CartStoreClass;
-  adminStore: AdminStoreClass;
+  authStore: typeof AuthStore;
+  cartStore: typeof CartStore;
+  adminStore: typeof AdminStore;
 };
 
 const StoresContext = createContext<Stores | null>(null);
 
 export function StoresProvider({ children }: { children: React.ReactNode }) {
+  // ✅ usar sempre as mesmas instâncias (singletons)
   const stores = useMemo<Stores>(() => {
-    // Instanciar 1x para não recriar stores a cada render
     return {
-      authStore: new AuthStoreClass(),
-      cartStore: new CartStoreClass(),
-      adminStore: new AdminStoreClass(),
+      authStore: AuthStore,
+      cartStore: CartStore,
+      adminStore: AdminStore,
     };
   }, []);
 
@@ -29,7 +29,6 @@ export function StoresProvider({ children }: { children: React.ReactNode }) {
 export function useStores() {
   const ctx = useContext(StoresContext);
   if (!ctx) {
-    // Mensagem clara para debugging (em vez de "getState of undefined")
     throw new Error("useStores() called outside <StoresProvider>. Check app/_layout.tsx");
   }
   return ctx;
