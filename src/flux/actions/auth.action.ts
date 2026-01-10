@@ -1,9 +1,9 @@
 // src/flux/actions/auth.action.ts
+import { fetchTable, insertRow, supabaseFetch, updateRows } from "../../../app/supabase";
 import { Dispatcher } from "../dispatcher/Dispatcher";
 import type { User } from "../types/auth.types";
-import { fetchTable, insertRow, updateRows, supabaseFetch } from "../../../app/supabase";
 
-// ✅ precisamos do email atual para o updateUser(changes)
+
 import { AuthStore } from "../stores/AuthStore";
 
 export const AuthActionTypes = {
@@ -74,12 +74,13 @@ export const AuthActions = {
     setError(null);
 
     try {
-      const email = user.email.trim();AuthActions.updateUserByEmail(current.email, changes);
+      const email = user.email.trim();
       const normalizedEmail = email.toLowerCase();
 
       // Proteção contra duplicados (igual ao Context antigo)
+      // Consulta mínima só para validar duplicado (mais robusto que select=*)
       const exists = await supabaseFetch("clients", {
-        query: `select=*&email=eq.${encodeURIComponent(normalizedEmail)}`,
+        query: `select=email&email=eq.${encodeURIComponent(normalizedEmail)}`,
       });
 
       if (Array.isArray(exists) && exists.length > 0) {
@@ -198,12 +199,7 @@ export const AuthActions = {
   },
 };
 
-/**
- * ✅ IMPORTANTÍSSIMO:
- * O teu Conta.tsx está a fazer:
- *   import { updateUser, logout } from ".../auth.action"
- * Por isso criamos named exports que apontam para AuthActions.
- */
+
 export const clearError = AuthActions.clearError;
 export const init = AuthActions.init;
 export const register = AuthActions.register;
