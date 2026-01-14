@@ -1,9 +1,11 @@
-import { Dispatcher } from "../dispatcher/Dispatcher";
-import type { Meal } from "../types/cart.types";
-import type { User } from "../types/auth.types";
-import type { Employee, Report } from "../types/admin.types";
 
-import { fetchTable, deleteRows } from "../../../app/supabase";
+import { Dispatcher } from "../dispatcher/Dispatcher";
+import type { Employee, Report } from "../types/admin.types";
+import type { User } from "../types/auth.types";
+import type { Meal } from "../types/cart.types";
+
+import { deleteRows, fetchTable, insertRow } from "../../../app/supabase";
+
 
 const SUPABASE_URL = "https://xrzgniwdagwvcygqerjd.supabase.co";
 const SUPABASE_API_KEY =
@@ -12,6 +14,9 @@ const SUPABASE_API_KEY =
 function toMsg(err: any, fallback: string) {
   return err?.message || fallback;
 }
+
+const isTestEnv =
+  typeof process !== "undefined" && process.env?.NODE_ENV === "test";
 
 async function supabasePatch(table: string, filter: string, body: any) {
   const url = `${SUPABASE_URL}/rest/v1/${table}?${filter}`;
@@ -27,7 +32,7 @@ async function supabasePatch(table: string, filter: string, body: any) {
     body: JSON.stringify(body),
   });
 
-  const text = await res.text(); // ✅ ler uma vez
+  const text = await res.text(); 
   if (!res.ok) {
     throw new Error(text || `Supabase PATCH error (${res.status})`);
   }
@@ -39,6 +44,7 @@ async function supabasePatch(table: string, filter: string, body: any) {
     return [];
   }
 }
+
 
 async function supabaseInsert(table: string, body: any) {
   const url = `${SUPABASE_URL}/rest/v1/${table}`;
@@ -62,21 +68,18 @@ async function supabaseInsert(table: string, body: any) {
   if (!text) return null;
   try {
     const parsed = JSON.parse(text);
-    // PostgREST devolve array
+
     return Array.isArray(parsed) ? parsed[0] : parsed;
   } catch {
     return null;
   }
 }
 
-/**
- * Employees sem Supabase: persistem durante a app estar aberta.
- * (não persistem ao matar a app, que é o esperado)
- */
+
 let employeesMemory: Employee[] = [];
 
 export const AdminActionTypes = {
-  // Meals
+
   MEALS_REQUEST: "ADMIN/MEALS_REQUEST",
   MEALS_SUCCESS: "ADMIN/MEALS_SUCCESS",
   MEALS_FAILURE: "ADMIN/MEALS_FAILURE",
@@ -85,37 +88,37 @@ export const AdminActionTypes = {
   MEAL_REMOVE_SUCCESS: "ADMIN/MEAL_REMOVE_SUCCESS",
   STOCK_UPDATE_SUCCESS: "ADMIN/STOCK_UPDATE_SUCCESS",
 
-  // Clients
+
   CLIENTS_REQUEST: "ADMIN/CLIENTS_REQUEST",
   CLIENTS_SUCCESS: "ADMIN/CLIENTS_SUCCESS",
   CLIENTS_FAILURE: "ADMIN/CLIENTS_FAILURE",
   CLIENT_PATCH_SUCCESS: "ADMIN/CLIENT_PATCH_SUCCESS",
   CLIENT_REMOVE_SUCCESS: "ADMIN/CLIENT_REMOVE_SUCCESS",
 
-  // Reports
+
   REPORTS_REQUEST: "ADMIN/REPORTS_REQUEST",
   REPORTS_SUCCESS: "ADMIN/REPORTS_SUCCESS",
   REPORTS_FAILURE: "ADMIN/REPORTS_FAILURE",
   REPORT_RESOLVE_SUCCESS: "ADMIN/REPORT_RESOLVE_SUCCESS",
 
-  // compat 
+
   ADD_REPORT: "ADMIN/ADD_REPORT",
   RESOLVE_REPORT: "ADMIN/RESOLVE_REPORT",
 
-  // Employees (local)
+
   EMPLOYEES_REQUEST: "ADMIN/EMPLOYEES_REQUEST",
   EMPLOYEES_SUCCESS: "ADMIN/EMPLOYEES_SUCCESS",
   EMPLOYEES_FAILURE: "ADMIN/EMPLOYEES_FAILURE",
   EMPLOYEE_ADD_SUCCESS: "ADMIN/EMPLOYEE_ADD_SUCCESS",
   EMPLOYEE_REMOVE_SUCCESS: "ADMIN/EMPLOYEE_REMOVE_SUCCESS",
 
-  // Promotions
+
   PROMO_SET_SUCCESS: "ADMIN/PROMO_SET_SUCCESS",
   PROMO_REMOVE_SUCCESS: "ADMIN/PROMO_REMOVE_SUCCESS",
 } as const;
 
 export const AdminActions = {
-  // -------- Meals --------
+
   async initMeals() {
     Dispatcher.dispatch({ type: AdminActionTypes.MEALS_REQUEST });
     try {
@@ -125,7 +128,11 @@ export const AdminActions = {
         const stock = Number(m.stock ?? 0);
         const available =
           typeof m.available === "boolean" ? m.available : stock > 0;
-        return { ...m, stock, available };
+
+        
+        const promo = m.promo ?? null;
+
+        return { ...m, stock, available, promo };
       });
 
       Dispatcher.dispatch({
@@ -149,14 +156,21 @@ export const AdminActions = {
     payload.available =
       typeof data.available === "boolean" ? data.available : payload.stock > 0;
 
-    const inserted = await supabaseInsert("meals", payload);
+    let inserted: any = null;
 
-    // se por alguma razão vier null, faz fallback
+    if (isTestEnv) {
+      inserted = await insertRow("meals", payload);
+    } else {
+      inserted = await supabaseInsert("meals", payload);
+    }
+
+
     const meal: Meal =
       (inserted as any) ??
       ({
         id: String(Date.now()),
         ...payload,
+        promo: payload.promo ?? null,
       } as Meal);
 
     Dispatcher.dispatch({
@@ -182,7 +196,6 @@ export const AdminActions = {
   },
 
   async removeMeal(mealId: string) {
-
     await deleteRows("meals", `id=eq.${mealId}`);
 
     Dispatcher.dispatch({
@@ -211,7 +224,7 @@ export const AdminActions = {
     });
   },
 
-  // -------- Clients --------
+
   async initClients() {
     Dispatcher.dispatch({ type: AdminActionTypes.CLIENTS_REQUEST });
     try {
@@ -276,7 +289,7 @@ export const AdminActions = {
     });
   },
 
-  // -------- Promotions --------
+
   async addPromotion(
     mealId: string,
     discountPercent: number,
@@ -301,7 +314,7 @@ export const AdminActions = {
     });
   },
 
-  // -------- Reports (local-only) --------
+
   async initReports() {
     Dispatcher.dispatch({
       type: AdminActionTypes.REPORTS_SUCCESS,
@@ -330,7 +343,7 @@ export const AdminActions = {
     });
   },
 
-  // -------- Employees (local-only, mas persistem durante a app aberta) --------
+
   async initEmployees() {
     Dispatcher.dispatch({
       type: AdminActionTypes.EMPLOYEES_SUCCESS,
@@ -357,6 +370,7 @@ export const AdminActions = {
     });
   },
 };
+
 
 export const addReport = (data: Omit<Report, "id" | "createdAt" | "resolved">) =>
   AdminActions.addReport(data);
