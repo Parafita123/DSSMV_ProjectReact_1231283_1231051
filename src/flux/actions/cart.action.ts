@@ -1,4 +1,3 @@
-// src/flux/actions/cart.action.ts
 import { Dispatcher } from "../dispatcher/Dispatcher";
 import type { Meal, Order } from "../types/cart.types";
 
@@ -19,7 +18,6 @@ export function addToCart(meal: Meal) {
   });
 }
 
-// ⚠️ O teu CartStore remove por INDEX, não por id.
 export function removeFromCart(index: number) {
   Dispatcher.dispatch({
     type: CartActionTypes.REMOVE_ITEM,

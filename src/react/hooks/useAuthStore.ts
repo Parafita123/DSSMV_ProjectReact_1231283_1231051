@@ -1,4 +1,3 @@
-// src/react/hooks/useAuthStore.ts
 import { useEffect, useMemo, useState } from "react";
 import { useStores } from "../context/StoresContext";
 import type { AuthState } from "../../flux/stores/AuthStore";
@@ -11,7 +10,6 @@ export function useAuthStore() {
   useEffect(() => {
     const onChange = () => setSnap(authStore.getState());
 
-    // ✅ BaseStore agora devolve unsubscribe function (não boolean)
     const unsubscribe = authStore.addChangeListener(onChange);
     return unsubscribe;
   }, [authStore]);

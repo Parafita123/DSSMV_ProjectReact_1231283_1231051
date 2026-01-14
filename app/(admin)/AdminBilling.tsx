@@ -1,7 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
 
-//FLUX: usa orders globais do CartStore
 import { getAllOrders } from "../../src/flux/stores/CartStore";
 
 export default function AdminBilling() {

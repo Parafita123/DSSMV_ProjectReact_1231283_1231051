@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useMemo } from "react";
 
-// ✅ IMPORTAR AS INSTÂNCIAS SINGLETON (não as classes)
 import { AuthStore } from "../../flux/stores/AuthStore";
 import { CartStore } from "../../flux/stores/CartStore";
 import { AdminStore } from "../../flux/stores/AdminStore";
@@ -14,7 +13,6 @@ type Stores = {
 const StoresContext = createContext<Stores | null>(null);
 
 export function StoresProvider({ children }: { children: React.ReactNode }) {
-  // ✅ usar sempre as mesmas instâncias (singletons)
   const stores = useMemo<Stores>(() => {
     return {
       authStore: AuthStore,

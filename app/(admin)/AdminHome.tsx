@@ -9,28 +9,13 @@ import {
   TouchableOpacity,
 } from "react-native";
 
-//Flux: estado + actions
 import { useAuthStore } from "../../src/react/hooks/useAuthStore";
 import { AuthActions } from "../../src/flux/actions/auth.action";
 
-/**
- * Home screen for the administration area. From here the administrator can
- * navigate to the various management modules. The screen uses a scroll view
- * so that on small devices the user can still access all options.
- */
 export default function AdminHome() {
   const router = useRouter();
-
-  // (Opcional) Se quiseres, podes usar isto no futuro para mostrar nome/role,
-  // ou para bloquear acesso caso não seja admin.
   const { currentUser } = useAuthStore();
 
-  /**
-   * Prompt the administrator before logging out. If confirmed, perform the
-   * logout and navigate back to the home screen. This ensures that the
-   * session is cleared and the user must log in again to access the admin
-   * area.
-   */
   const handleLogout = () => {
     const doLogout = () => {
       AuthActions.logout();

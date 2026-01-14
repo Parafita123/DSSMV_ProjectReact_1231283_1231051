@@ -1,4 +1,3 @@
-// src/flux/stores/AdminStore.ts
 import { BaseStore } from "./BaseStore";
 import { Dispatcher } from "../dispatcher/Dispatcher";
 import { AdminActionTypes } from "../actions/admin.action";

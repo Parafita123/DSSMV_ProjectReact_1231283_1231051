@@ -1,4 +1,3 @@
-// app/(cliente)/SugerirReceita.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -12,7 +11,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
-// ✅ FLUX auth
+
 import { useAuthStore } from "../../src/react/hooks/useAuthStore";
 
 import { insertRow } from "../supabase";

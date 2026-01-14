@@ -1,4 +1,3 @@
-// src/flux/actions/auth.action.ts
 import { fetchTable, insertRow, supabaseFetch, updateRows } from "../../../app/supabase";
 import { Dispatcher } from "../dispatcher/Dispatcher";
 import type { User } from "../types/auth.types";
@@ -27,7 +26,6 @@ export const AuthActionTypes = {
 
   CLEAR_ERROR: "AUTH/CLEAR_ERROR",
 
-  // (mantém os teus events auxiliares que já estás a usar)
   SET_LOADING: "AUTH/SET_LOADING",
   SET_ERROR: "AUTH/SET_ERROR",
   UPSERT_USER: "AUTH/UPSERT_USER",
@@ -77,8 +75,6 @@ export const AuthActions = {
       const email = user.email.trim();
       const normalizedEmail = email.toLowerCase();
 
-      // Proteção contra duplicados (igual ao Context antigo)
-      // Consulta mínima só para validar duplicado (mais robusto que select=*)
       const exists = await supabaseFetch("clients", {
         query: `select=email&email=eq.${encodeURIComponent(normalizedEmail)}`,
       });
@@ -164,7 +160,7 @@ export const AuthActions = {
   },
 
   /**
-   * ✅ Mantém o teu Conta.tsx limpo:
+   * 
    * updateUser(changes) resolve o email do utilizador atual através do AuthStore
    * e faz update no Supabase + UPDATE_SUCCESS.
    */

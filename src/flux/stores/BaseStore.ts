@@ -1,4 +1,3 @@
-// src/flux/stores/BaseStore.ts
 export type ChangeListener = () => void;
 
 /**
@@ -22,7 +21,7 @@ export class BaseStore {
 
   /**
    * Adiciona listener e devolve cleanup function.
-   * ✅ Isto é o que o useEffect espera.
+   * o q o useEffect espera
    */
   public addChangeListener(listener: ChangeListener): () => void {
     this.listeners.add(listener);

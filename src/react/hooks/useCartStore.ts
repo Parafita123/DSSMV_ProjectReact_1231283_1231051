@@ -1,4 +1,3 @@
-// src/react/hooks/useCartStore.ts
 import { useEffect, useMemo, useState } from "react";
 import { useStores } from "../context/StoresContext";
 import type { CartState } from "../../flux/stores/CartStore";
@@ -25,7 +24,7 @@ export function useCartStore() {
   return {
     ...snap,
     items: itemsSafe,
-    cartItems: itemsSafe, // ✅ compat para Carrinho.tsx antigo
+    cartItems: itemsSafe, 
     orders: ordersSafe,
     totalItems,
     totalPrice,

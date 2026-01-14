@@ -11,7 +11,6 @@ export default function Carrinho() {
   const { currentUser } = useAuthStore();
   const router = useRouter();
 
-  // ✅ o store guarda "items"
   const { items } = useCartStore();
   const cartItems = items ?? [];
 

@@ -1,4 +1,3 @@
-// app/(admin)/AdminEmployees.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -14,13 +13,6 @@ import { useAdminStore } from "../../src/react/hooks/useAdminStore";
 import { AdminActions } from "../../src/flux/actions/admin.action";
 import type { Employee } from "../../src/flux/types/admin.types";
 
-/**
- * AdminEmployees (FLUX)
- * Lógica igual ao Context:
- * - listar funcionários
- * - adicionar
- * - remover
- */
 export default function AdminEmployees() {
   const { employees, loading, error } = useAdminStore();
 
@@ -46,7 +38,6 @@ export default function AdminEmployees() {
     setName("");
     setRole("");
     setEmail("");
-    // feedback visual igual ao teu
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 2000);
   };

@@ -1,4 +1,3 @@
-// src/flux/stores/AuthStore.ts
 import { BaseStore } from "./BaseStore";
 import { Dispatcher } from "../dispatcher/Dispatcher";
 import { AuthActionTypes } from "../actions/auth.action";

@@ -1,4 +1,3 @@
-// app/(admin)/AdminSuggestions.tsx
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -11,20 +10,10 @@ import {
   View,
 } from "react-native";
 
-// ✅ Flux actions (sem Context)
 import { AdminActions } from "../../src/flux/actions/admin.action";
 
-// ✅ Supabase helpers (igual à tua lógica atual)
 import { deleteRows, fetchTable } from "../supabase";
 
-/**
- * Screen that lists all recipe suggestions submitted by clients via the
- * SugerirReceita screen. Administrators can review each suggestion
- * and either remove it or add it to the official menu. Adding to
- * the menu opens a form prefilled with the suggestion's name. On
- * submission, the new meal is inserted into the "meals" table and
- * removed from the suggestions table.
- */
 export default function AdminSuggestions() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,7 +35,6 @@ export default function AdminSuggestions() {
     try {
       const data = await fetchTable("suggestions", "*");
 
-      // Sort by creation date descending so that recent suggestions appear first
       const sorted = (data ?? []).sort((a: any, b: any) =>
         a.createdAt < b.createdAt ? 1 : -1
       );
@@ -55,7 +43,6 @@ export default function AdminSuggestions() {
     } catch (err: any) {
       console.error(err);
 
-      // If the table does not exist in Supabase, inform the admin.
       const msg: string = err?.message || "";
       if (msg.includes("Could not find the table")) {
         setError(
@@ -81,7 +68,6 @@ export default function AdminSuggestions() {
     try {
       await deleteRows("suggestions", `id=eq.${id}`);
 
-      // 🔥 refrescar a lista a partir do Supabase (mesma lógica)
       await loadSuggestions();
     } catch (err: any) {
       console.error(err);
@@ -103,7 +89,6 @@ export default function AdminSuggestions() {
   const submitMeal = async () => {
     if (!selected) return;
 
-    // Validate mandatory fields
     if (!form.name || !form.description || !form.category || !form.price) {
       alert("Preenche todos os campos.");
       return;
@@ -111,7 +96,6 @@ export default function AdminSuggestions() {
 
     setSubmitting(true);
     try {
-      // ✅ Flux: adiciona ao menu via AdminActions (store mantém meals atualizadas)
       await AdminActions.addMeal({
         name: form.name,
         description: form.description,
@@ -122,7 +106,6 @@ export default function AdminSuggestions() {
         available: (parseInt(form.stock) || 0) > 0,
       });
 
-      // Remove suggestion from Supabase
       await deleteRows("suggestions", `id=eq.${selected.id}`);
 
       await loadSuggestions();

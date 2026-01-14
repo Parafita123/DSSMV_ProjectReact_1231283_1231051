@@ -1,4 +1,3 @@
-// app/(admin)/AdminClients.tsx
 import React, { useEffect, useMemo } from "react";
 import {
   View,
@@ -13,18 +12,11 @@ import { useAdminStore } from "../../src/react/hooks/useAdminStore";
 import { useCartStore } from "../../src/react/hooks/useCartStore";
 import { AdminActions } from "../../src/flux/actions/admin.action";
 
-/**
- * Admin: gerir clientes + ver reports.
- * (Pedidos: usa orders do CartStore. Se o teu CartStore guardar todos os pedidos,
- * isto funciona. Se guardar só pedidos do user atual, diz-me e ajustamos para
- * uma tabela "orders" no supabase.)
- */
 export default function AdminClients() {
   const { clients, reports, loading, error } = useAdminStore();
   const { orders } = useCartStore();
 
   useEffect(() => {
-    // garantir dados carregados
     void AdminActions.initClients();
     void AdminActions.initReports();
   }, []);

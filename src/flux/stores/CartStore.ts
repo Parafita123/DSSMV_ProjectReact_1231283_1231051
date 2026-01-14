@@ -1,9 +1,7 @@
-// src/flux/stores/CartStore.ts
 import { BaseStore } from "./BaseStore";
 import { Dispatcher } from "../dispatcher/Dispatcher";
 import type { Meal, Order } from "../types/cart.types";
 
-// ✅ Fonte de verdade: estado da store
 export const getAllOrders = () => [...CartStore.getState().orders];
 
 export type CartState = {
@@ -76,7 +74,7 @@ export class CartStoreClass extends BaseStore {
         this.setState({ items: [], error: null });
         return;
 
-      // ✅ usado para “hidratar” orders (por ex: carregadas no arranque)
+  
       case "CART/SET_ORDERS": {
         const orders: Order[] = action.payload?.orders ?? [];
         this.setState({ orders, error: null });
@@ -87,7 +85,7 @@ export class CartStoreClass extends BaseStore {
         const order: Order | undefined = action.payload?.order;
         if (!order) return;
 
-        // ✅ ordem mais recente primeiro + limpa carrinho
+        //ordem mais recente primeiro + limpa carrinho
         this.setState({
           orders: [order, ...this.state.orders],
           items: [],

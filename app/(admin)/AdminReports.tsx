@@ -1,4 +1,3 @@
-// app/(admin)/AdminReports.tsx
 import React, { useMemo } from "react";
 import {
   View,
@@ -8,14 +7,12 @@ import {
   ScrollView,
 } from "react-native";
 
-// ✅ Flux hook + actions
 import { useAdminStore } from "../../src/react/hooks/useAdminStore";
 import { AdminActions } from "../../src/flux/actions/admin.action";
 
 export default function AdminReports() {
   const { reports } = useAdminStore();
 
-  // newest first (sem mutar o array original do store)
   const sortedReports = useMemo(() => {
     const arr = reports ?? [];
     return [...arr].sort(

@@ -1,4 +1,3 @@
-// app/(admin)/AdminAddMeal.tsx
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -12,15 +11,10 @@ import {
   Platform,
 } from "react-native";
 
-// ✅ Flux
 import { useAdminStore } from "../../src/react/hooks/useAdminStore";
 import { AdminActions } from "../../src/flux/actions/admin.action";
 import type { Meal } from "../../src/flux/types/cart.types";
 
-/**
- * Screen que permite ao admin adicionar/editar/remover refeições.
- * Mesma lógica do teu Context, mas via Flux (store + actions).
- */
 export default function AdminAddMeal() {
   const { meals, error } = useAdminStore();
 
@@ -77,7 +71,6 @@ export default function AdminAddMeal() {
         price: priceNum,
         spicy,
         stock: stockNum,
-        // available é calculado pela action, mas podes deixar explícito:
         available: stockNum > 0,
       } as any);
 
@@ -119,7 +112,6 @@ export default function AdminAddMeal() {
   };
 
   const sortedMeals = useMemo(() => {
-    // Mantém simples e previsível
     return [...(meals ?? [])].sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
   }, [meals]);
 

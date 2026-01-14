@@ -1,17 +1,9 @@
-// src/flux/actions/admin.action.ts
 import { Dispatcher } from "../dispatcher/Dispatcher";
 import type { Meal } from "../types/cart.types";
 import type { User } from "../types/auth.types";
 import type { Employee, Report } from "../types/admin.types";
 
 import { fetchTable, deleteRows } from "../../../app/supabase";
-
-/**
- * ⚠️ Não mexemos no supabase.ts.
- * - Para evitar "Already read", fazemos PATCH/POST aqui com leitura do body 1x.
- * - Para evitar UUID inválido, o addMeal passa a usar POST com return=representation
- *   (assim apanha o UUID real do Supabase).
- */
 
 const SUPABASE_URL = "https://xrzgniwdagwvcygqerjd.supabase.co";
 const SUPABASE_API_KEY =
@@ -48,10 +40,6 @@ async function supabasePatch(table: string, filter: string, body: any) {
   }
 }
 
-/**
- * ✅ POST que devolve a row inserida (UUID real!)
- * Isto resolve o teu "invalid input syntax for type uuid: 1767..."
- */
 async function supabaseInsert(table: string, body: any) {
   const url = `${SUPABASE_URL}/rest/v1/${table}`;
 
@@ -66,7 +54,7 @@ async function supabaseInsert(table: string, body: any) {
     body: JSON.stringify(body),
   });
 
-  const text = await res.text(); // ✅ ler uma vez
+  const text = await res.text(); 
   if (!res.ok) {
     throw new Error(text || `Supabase POST error (${res.status})`);
   }
@@ -82,7 +70,7 @@ async function supabaseInsert(table: string, body: any) {
 }
 
 /**
- * ✅ Employees sem Supabase: persistem durante a app estar aberta.
+ * Employees sem Supabase: persistem durante a app estar aberta.
  * (não persistem ao matar a app, que é o esperado)
  */
 let employeesMemory: Employee[] = [];
@@ -110,7 +98,7 @@ export const AdminActionTypes = {
   REPORTS_FAILURE: "ADMIN/REPORTS_FAILURE",
   REPORT_RESOLVE_SUCCESS: "ADMIN/REPORT_RESOLVE_SUCCESS",
 
-  // compat (para não dar erro no AdminStore)
+  // compat 
   ADD_REPORT: "ADMIN/ADD_REPORT",
   RESOLVE_REPORT: "ADMIN/RESOLVE_REPORT",
 
@@ -161,10 +149,9 @@ export const AdminActions = {
     payload.available =
       typeof data.available === "boolean" ? data.available : payload.stock > 0;
 
-    // ✅ IMPORTANTÍSSIMO: agora devolve o UUID real do Supabase
     const inserted = await supabaseInsert("meals", payload);
 
-    // se por alguma razão vier null, faz fallback mas avisa no state (evita rebentar)
+    // se por alguma razão vier null, faz fallback
     const meal: Meal =
       (inserted as any) ??
       ({
@@ -186,7 +173,6 @@ export const AdminActions = {
       patch.available = patch.stock > 0;
     }
 
-    // ✅ com UUID certo deixa de falhar
     await supabasePatch("meals", `id=eq.${mealId}`, patch);
 
     Dispatcher.dispatch({
@@ -196,7 +182,7 @@ export const AdminActions = {
   },
 
   async removeMeal(mealId: string) {
-    // ✅ com UUID certo deixa de falhar
+
     await deleteRows("meals", `id=eq.${mealId}`);
 
     Dispatcher.dispatch({
@@ -372,7 +358,6 @@ export const AdminActions = {
   },
 };
 
-// ✅ exports diretos para views que importam funções
 export const addReport = (data: Omit<Report, "id" | "createdAt" | "resolved">) =>
   AdminActions.addReport(data);
 

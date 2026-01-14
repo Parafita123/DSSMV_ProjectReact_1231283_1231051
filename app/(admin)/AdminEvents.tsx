@@ -12,18 +12,11 @@ import { useAdminStore } from "../../src/react/hooks/useAdminStore";
 import { AdminActions } from "../../src/flux/actions/admin.action";
 import type { Meal } from "../../src/flux/types/cart.types";
 
-/**
- * AdminEvents (FLUX)
- * Lógica igual ao Context:
- * - definir promoção (desconto%) por 7 dias
- * - remover promoção
- */
 export default function AdminEvents() {
   const { meals } = useAdminStore();
   const [discounts, setDiscounts] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    // garante que há meals carregadas (sem estragar nada se já estiverem)
     if (!meals || meals.length === 0) {
       void AdminActions.initMeals();
     }

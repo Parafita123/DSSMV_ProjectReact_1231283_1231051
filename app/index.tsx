@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
-// ✅ Flux: ler estado da store + disparar actions
 import { useAuthStore } from "../src/react/hooks/useAuthStore";
 import { AuthActions } from "../src/flux/actions/auth.action";
 import type { User } from "../src/flux/types/auth.types";
@@ -20,12 +19,10 @@ import type { User } from "../src/flux/types/auth.types";
 export default function HomeScreen() {
   const router = useRouter();
 
-  // ✅ Store snapshot
   const { users, currentUser, loading, error } = useAuthStore();
   const isAuthenticated = !!currentUser;
   const user = currentUser;
 
-  // UI state
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -101,14 +98,12 @@ export default function HomeScreen() {
     setAdminModalVisible(true);
   };
 
-  // ✅ Login cliente via Flux
   const handleLogin = () => {
     setLocalError(null);
     AuthActions.clearError();
     AuthActions.login(loginEmail.trim(), loginPassword);
   };
 
-  // ✅ Registo cliente via Flux
   const handleRegister = () => {
     setLocalError(null);
     AuthActions.clearError();
@@ -133,7 +128,7 @@ export default function HomeScreen() {
     AuthActions.register(payload);
   };
 
-  // ✅ Login admin via Flux (apenas usa AuthActions.login e depois valida role)
+  //(apenas usa AuthActions.login e depois valida role)
   const handleAdminLogin = () => {
     setAdminLocalError(null);
     AuthActions.clearError();
@@ -142,12 +137,11 @@ export default function HomeScreen() {
     AuthActions.login(adminEmail.trim(), adminPassword);
   };
 
-  // ✅ Quando autenticar como CLIENTE, fechar modal do cliente e navegar
+  //Quando autenticar como CLIENTE, fechar modal do cliente e navegar
   useEffect(() => {
     if (!authModalVisible) return;
     if (!isAuthenticated || !user) return;
 
-    // Só fecha se for cliente (não queremos fechar modal cliente se alguém tentou entrar como admin)
     if (user.role !== "client") {
       setLocalError("Apenas clientes podem entrar na Área do Cliente.");
       return;
@@ -156,10 +150,8 @@ export default function HomeScreen() {
     setAuthModalVisible(false);
     resetForms();
     router.push("/ClientMenuScreen");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authModalVisible, isAuthenticated, user?.email, user?.role]);
 
-  // ✅ Quando autenticar como ADMIN, fechar modal de admin e navegar
   useEffect(() => {
     if (!adminModalVisible) return;
     if (!isAuthenticated || !user) return;
@@ -172,7 +164,6 @@ export default function HomeScreen() {
     setAdminModalVisible(false);
     resetForms();
     router.push("/AdminHome");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminModalVisible, isAuthenticated, user?.email, user?.role]);
 
   return (

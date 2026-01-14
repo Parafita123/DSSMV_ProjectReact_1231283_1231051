@@ -1,4 +1,3 @@
-// app/(cliente)/Conta.tsx
 import React, { useMemo, useState } from "react";
 import {
   View,
@@ -11,15 +10,12 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
-//Flux hooks
 import { useAuthStore } from "../../src/react/hooks/useAuthStore";
 import { useCartStore } from "../../src/react/hooks/useCartStore";
 
-//Flux actions
 import { updateUser, logout } from "../../src/flux/actions/auth.action";
 import { addReport } from "../../src/flux/actions/admin.action";
 
-// ✅ Types
 import type { Order } from "../../src/flux/types/cart.types";
 
 export default function Conta() {
@@ -54,7 +50,6 @@ export default function Conta() {
   const [editAddress, setEditAddress] = useState(user?.address || "");
   const [editPhone, setEditPhone] = useState(user?.phone || "");
 
-  // Se user mudar (login/logout), sincroniza os campos
   React.useEffect(() => {
     setEditName(user?.name || "");
     setEditEmail(user?.email || "");
@@ -91,7 +86,7 @@ export default function Conta() {
   };
 
   const handleSaveChanges = async () => {
-    // ✅ Flux: updateUser só recebe changes (1 argumento)
+    //updateUser só recebe changes (1 argumento)
     await updateUser({
       name: editName,
       email: editEmail,
